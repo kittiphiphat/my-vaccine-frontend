@@ -87,7 +87,7 @@ export default function Navbar() {
         {/* Logo */}
         <a href="#" onClick={handleLogoClick} className="flex items-center">
           <Image
-            src="https://res.cloudinary.com/dksk7exum/image/upload/v1753158107/medcmu_25ea52b67a.png"
+            src="http://localhost:1337/uploads/medcmu_25ea52b67a_3460d54cd5.png"
             width={160}
             height={80}
             quality={100}
