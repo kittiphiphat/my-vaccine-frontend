@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 
+
 export default function CheckServerPage() {
   const router = useRouter();
   const [isDown, setIsDown] = useState(true);
@@ -128,9 +129,9 @@ export default function CheckServerPage() {
       <div className="relative max-w-md w-full bg-white rounded-3xl shadow-2xl p-10 text-center ring-4 ring-[#30266D]">
         <div className="mb-6">
           <Image
-            src="https://res.cloudinary.com/dksk7exum/image/upload/v1751438380/logo2_7b39634597.png"
-            width={100}
-            height={100}
+            src="/medcmu.png"
+            width={200}
+            height={200}
             alt="Logo"
             className="mx-auto mb-4 animate-bounce"
           />
