@@ -116,7 +116,7 @@ export default function AppointmentDetailPage() {
 
   const hospitelData = hospitel?.data?.[0]?.attributes || {};
   const logoUrl =
-    hospitelData.logo?.data?.attributes?.url ?? 'https://res.cloudinary.com/dksk7exum/image/upload/v1751438380/logo2_7b39634597.png';
+    hospitelData.logo?.data?.attributes?.url ?? '/medcmu2.png';
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 font-sarabun">

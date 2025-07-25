@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import HospitelEdit from './Hospitel/Hospiteledit';
+import Swal from 'sweetalert2';
 
 
 export default function Hospitels() {
@@ -37,11 +38,20 @@ export default function Hospitels() {
     setCreatingNew(true);
   };
 
-  const handleSave = () => {
-    setEditingHospitel(null);
-    setCreatingNew(false);
-    fetchHospitels();
-  };
+ const handleSave = () => {
+  setEditingHospitel(null);
+  setCreatingNew(false);
+  fetchHospitels();
+
+  if (creatingNew) {
+    Swal.fire({
+      icon: 'success',
+      title: 'สร้างข้อมูลใหม่สำเร็จ',
+      text: 'เพิ่มข้อมูลรายละเอียดใบนัดเรียบร้อยแล้ว',
+      confirmButtonColor: '#30266D',
+    });
+  }
+};
 
   const handleCancel = () => {
     setEditingHospitel(null);
@@ -89,7 +99,7 @@ export default function Hospitels() {
         />
       ) : (
         <table className="w-full border border-gray-300 rounded-md overflow-hidden shadow-sm">
-          <thead className="bg-[#30266D] text-white text-sm">
+          <thead className="bg-[#30266D] text-white">
             <tr>
               <th className="p-3 text-left">ชื่อโรงพยาบาล</th>
               <th className="p-3 text-left">ข้อความเตือน</th>
@@ -98,13 +108,13 @@ export default function Hospitels() {
               <th className="p-3 text-center">จัดการ</th>
             </tr>
           </thead>
-          <tbody className="text-gray-800 text-sm">
+          <tbody className="text-gray-800 ">
             {hospitels.map(({ id, attributes }) => (
               <tr key={id} className="border-t border-gray-200 hover:bg-gray-50">
                 <td className="p-3">{attributes.name}</td>
                 <td className="p-3 max-w-md">
                   <div className="text-sm font-semibold">{attributes.warningtext}</div>
-                  <div className="text-sm text-gray-600">{attributes.subwarningtext}</div>
+                  <div className="text-gray-600 text-sm">{attributes.subwarningtext}</div>
                 </td>
                  <td className="p-3">{formatPhoneNumber(attributes.phone)}</td>
                 <td className="p-3">{attributes.website}</td>

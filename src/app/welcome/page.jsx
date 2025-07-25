@@ -108,11 +108,12 @@ export default function WelcomeBack() {
           >
             <div className="mb-6 md:mb-8">
               <Image
-                src="https://res.cloudinary.com/dksk7exum/image/upload/v1751438380/logo2_7b39634597.png"
+                src="/medcmu2.png"
                 alt="โลโก้"
-                width={100}
-                height={100}
-                className="mx-auto rounded-xl shadow-md"
+                width={200}
+                height={200}
+                quality={100}
+                className="mx-auto"
                 priority
               />
             </div>

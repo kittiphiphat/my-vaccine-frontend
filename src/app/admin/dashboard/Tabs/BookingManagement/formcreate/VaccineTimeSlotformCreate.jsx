@@ -7,7 +7,6 @@ import withReactContent from 'sweetalert2-react-content';
 
 const MySwal = withReactContent(Swal);
 
-// 🔧 ฟังก์ชันสร้าง options เวลา 06:00 - 22:00 ทุก 15 นาที
 function generateTimeOptions(start = 6, end = 22, intervalMinutes = 15) {
   const times = [];
   for (let hour = start; hour <= end; hour++) {
@@ -21,7 +20,10 @@ function generateTimeOptions(start = 6, end = 22, intervalMinutes = 15) {
   return times;
 }
 
-const timeOptions = generateTimeOptions();
+const timeOptions = generateTimeOptions().map((time) => ({
+  value: time,
+  label: time,
+}));
 
 export default function VaccineTimeSlotFormCreate({ onSave, onCancel }) {
   const [vaccineOptions, setVaccineOptions] = useState([]);
@@ -33,31 +35,32 @@ export default function VaccineTimeSlotFormCreate({ onSave, onCancel }) {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    async function fetchVaccines() {
-      try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccines?pagination[limit]=-1`, {
-          credentials: 'include',
-        });
-        const data = await res.json();
-        setVaccineOptions(data.data || []);
-      } catch (error) {
-        console.error('Error fetching vaccines:', error);
-        MySwal.fire('ผิดพลาด', 'โหลดข้อมูลวัคซีนล้มเหลว', 'error');
-      }
+  async function fetchVaccinesAndFilter() {
+    try {
+      const vaccinesRes = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccines?pagination[limit]=-1&filters[useTimeSlots][$eq]=true`, {
+        credentials: 'include',
+      });
+      const vaccinesJson = await vaccinesRes.json();
+      const allVaccines = vaccinesJson.data || [];
+
+
+      const availableVaccines = allVaccines;
+
+      const options = availableVaccines.map(vaccine => ({
+        value: vaccine.id,
+        label: vaccine.attributes?.title || `วัคซีน ID: ${vaccine.id}`,
+      }));
+
+      setVaccineOptions(options);
+    } catch (error) {
+      
+      MySwal.fire('ผิดพลาด', 'โหลดข้อมูลวัคซีนล้มเหลว', 'error');
     }
-    fetchVaccines();
-  }, []);
+  }
 
-  // แปลง options ให้ react-select ใช้
-  const vaccineOptionsForSelect = vaccineOptions.map((v) => ({
-    value: v.id,
-    label: v.attributes?.title || 'ไม่ระบุชื่อวัคซีน',
-  }));
+  fetchVaccinesAndFilter();
+}, []);
 
-  const timeOptionsForSelect = timeOptions.map((time) => ({
-    value: time,
-    label: time,
-  }));
 
   function toFullTimeFormat(timeStr) {
     if (!timeStr) return null;
@@ -68,21 +71,8 @@ export default function VaccineTimeSlotFormCreate({ onSave, onCancel }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-
-    if (!vaccineId) {
-      await MySwal.fire('แจ้งเตือน', 'กรุณาเลือกวัคซีน', 'warning');
-      return;
-    }
-    if (!startTime || !endTime) {
-      await MySwal.fire('แจ้งเตือน', 'กรุณาเลือกช่วงเวลาให้ครบถ้วน', 'warning');
-      return;
-    }
-    if (startTime >= endTime) {
-      await MySwal.fire('แจ้งเตือน', 'เวลาเริ่มต้นต้องน้อยกว่าเวลาสิ้นสุด', 'warning');
-      return;
-    }
-    if (quota <= 0) {
-      await MySwal.fire('แจ้งเตือน', 'จำนวนที่รับต้องมากกว่า 0', 'warning');
+    if (!vaccineId || !startTime || !endTime || startTime >= endTime || quota <= 0) {
+      MySwal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลให้ถูกต้อง', 'warning');
       return;
     }
 
@@ -117,63 +107,59 @@ export default function VaccineTimeSlotFormCreate({ onSave, onCancel }) {
       });
 
       if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(errorText || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+        const errorJson = await res.json();
+        throw new Error(errorJson?.error?.message || 'ไม่สามารถบันทึกข้อมูลได้');
       }
 
       await MySwal.fire('สำเร็จ', 'บันทึกช่วงเวลาเรียบร้อยแล้ว', 'success');
       onSave();
     } catch (error) {
-      await MySwal.fire('ผิดพลาด', error.message || 'ไม่สามารถบันทึกข้อมูลได้', 'error');
+      await MySwal.fire('ผิดพลาด', `${error.message}`, 'error');
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="space-y-6 bg-[#FAF9FE] p-6 rounded-md shadow-md border border-[#30266D]"
-    >
+    <form onSubmit={handleSubmit} className="space-y-6 bg-[#FAF9FE] p-6 rounded-md shadow-md border border-[#30266D]">
       <h3 className="text-xl font-semibold text-[#30266D]">สร้างช่วงเวลาให้บริการใหม่</h3>
 
       <div>
         <label className="block font-semibold text-[#30266D] mb-1">วัคซีน *</label>
         <Select
-          options={vaccineOptionsForSelect}
-          value={vaccineOptionsForSelect.find(opt => opt.value === vaccineId) || null}
+          options={vaccineOptions}
+          value={vaccineOptions.find(opt => opt.value === vaccineId) || null}
           onChange={(selected) => setVaccineId(selected ? selected.value : '')}
           placeholder="-- เลือกวัคซีน --"
           isClearable
-          styles={ customSelectStyles}
-            
+          noOptionsMessage={() => 'ไม่มีวัคซีนให้เลือก'}
+          styles={customSelectStyles}
         />
       </div>
 
+      {/* startTime & endTime */}
       <div className="flex gap-4">
         <div className="flex-1">
           <label className="block font-semibold text-[#30266D] mb-1">เวลาเริ่มต้น *</label>
           <Select
-            options={timeOptionsForSelect}
-            value={timeOptionsForSelect.find(opt => opt.value === startTime) || null}
+            options={timeOptions}
+            value={timeOptions.find(opt => opt.value === startTime) || null}
             onChange={(selected) => setStartTime(selected ? selected.value : '')}
             placeholder="-- เลือกเวลา --"
             isClearable
-            styles={ customSelectStyles}
-            
+            styles={customSelectStyles}
           />
         </div>
 
         <div className="flex-1">
           <label className="block font-semibold text-[#30266D] mb-1">เวลาสิ้นสุด *</label>
           <Select
-            options={timeOptionsForSelect}
-            value={timeOptionsForSelect.find(opt => opt.value === endTime) || null}
+            options={timeOptions}
+            value={timeOptions.find(opt => opt.value === endTime) || null}
             onChange={(selected) => setEndTime(selected ? selected.value : '')}
             placeholder="-- เลือกเวลา --"
             isClearable
-            styles={ customSelectStyles}
-           
+            styles={customSelectStyles}
           />
         </div>
       </div>

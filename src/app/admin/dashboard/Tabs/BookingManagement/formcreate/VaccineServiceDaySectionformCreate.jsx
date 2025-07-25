@@ -11,6 +11,7 @@ export default function VaccineServiceDayFormCreate({ onSave, onCancel }) {
   const [selectedDays, setSelectedDays] = useState([]);
   const [selectedVaccine, setSelectedVaccine] = useState(null);
   const [vaccines, setVaccines] = useState([]);
+  const [usedDays, setUsedDays] = useState(new Set());
 
   const dayOptions = [
     { value: 0, label: 'อาทิตย์' },
@@ -22,31 +23,87 @@ export default function VaccineServiceDayFormCreate({ onSave, onCancel }) {
     { value: 6, label: 'เสาร์' },
   ];
 
-  useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccines?pagination[limit]=-1`)
-      .then((res) => res.json())
-      .then((data) => {
-        const options = (data.data || []).map((vaccine) => ({
-          value: vaccine.id,
-          label: vaccine.attributes?.title || `วัคซีน ID: ${vaccine.id}`,
-        }));
-        setVaccines(options);
-      })
-      .catch((err) => {
-        console.error('Error fetching vaccines:', err);
-        MySwal.fire('ผิดพลาด', 'โหลดข้อมูลวัคซีนล้มเหลว', 'error');
-      });
-  }, []);
+  // สร้าง options โดย disable วันที่ถูกใช้แล้ว
+  const updatedDayOptions = dayOptions.map((day) => ({
+    ...day,
+    isDisabled: usedDays.has(day.value),
+  }));
 
-  const handleDaysChange = (selected) => {
-    setSelectedDays(selected || []);
-  };
+  useEffect(() => {
+  async function fetchVaccines() {
+    try {
+      // ดึงวัคซีนทั้งหมดที่ใช้ time slot
+      const vaccineRes = await fetch(
+        `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccines?pagination[limit]=-1&filters[useTimeSlots][$eq]=true`,
+        { credentials: 'include' }
+      );
+      const vaccineJson = await vaccineRes.json();
+      const allVaccines = vaccineJson.data;
+
+      // ดึง vaccine-service-days ทั้งหมด
+      const dayRes = await fetch(
+        `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccine-service-days?pagination[limit]=-1&populate=vaccine`,
+        { credentials: 'include' }
+      );
+      const dayJson = await dayRes.json();
+      const usedVaccineIds = new Set(
+        dayJson.data.map((d) => d.attributes.vaccine?.data?.id)
+      );
+
+      // กรองเฉพาะวัคซีนที่ยังไม่ถูกใช้
+      const available = allVaccines.filter((v) => !usedVaccineIds.has(v.id));
+      const options = available.map((v) => ({
+        value: v.id,
+        label: v.attributes?.title || `วัคซีน ID: ${v.id}`,
+      }));
+
+      setVaccines(options);
+    } catch (err) {
+      console.error('โหลดวัคซีนล้มเหลว:', err);
+      MySwal.fire('ผิดพลาด', 'โหลดวัคซีนล้มเหลว', 'error');
+    }
+  }
+
+  fetchVaccines();
+}, []);
+
+
+  // เมื่อเลือกวัคซีน ให้โหลด usedDays ใหม่
+  useEffect(() => {
+    async function fetchUsedDays() {
+      if (!selectedVaccine) return;
+
+      try {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccine-service-days?filters[vaccine][id][$eq]=${selectedVaccine.value}&pagination[limit]=-1`,
+          { credentials: 'include' }
+        );
+        const json = await res.json();
+        const existing = json.data || [];
+
+        const used = new Set();
+        existing.forEach((item) => {
+          const days = item.attributes.day_of_week || [];
+          days.forEach((d) => used.add(d));
+        });
+
+        setUsedDays(used);
+        // ล้าง selected days ถ้ามีวันที่ถูก disable
+        setSelectedDays((prev) => prev.filter((d) => !used.has(d.value)));
+      } catch (err) {
+        console.error('โหลดวันซ้ำล้มเหลว:', err);
+        MySwal.fire('ผิดพลาด', 'โหลดวันซ้ำล้มเหลว', 'error');
+      }
+    }
+
+    fetchUsedDays();
+  }, [selectedVaccine]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (selectedDays.length === 0) {
-      await MySwal.fire('แจ้งเตือน', 'กรุณาเลือกวันให้บริการอย่างน้อย 1 วัน', 'warning');
+    if (!selectedDays.length) {
+      await MySwal.fire('แจ้งเตือน', 'กรุณาเลือกวันให้บริการ', 'warning');
       return;
     }
 
@@ -57,7 +114,6 @@ export default function VaccineServiceDayFormCreate({ onSave, onCancel }) {
 
     const confirm = await MySwal.fire({
       title: 'ยืนยันการสร้างวันให้บริการ?',
-      text: 'คุณแน่ใจหรือไม่ว่าต้องการเพิ่มข้อมูลนี้',
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'ใช่, บันทึก',
@@ -66,14 +122,14 @@ export default function VaccineServiceDayFormCreate({ onSave, onCancel }) {
 
     if (!confirm.isConfirmed) return;
 
-    const payload = {
-      data: {
-        day_of_week: selectedDays.map((d) => d.value),
-        vaccine: selectedVaccine.value,
-      },
-    };
-
     try {
+      const payload = {
+        data: {
+          day_of_week: selectedDays.map((d) => d.value),
+          vaccine: selectedVaccine.value,
+        },
+      };
+
       const res = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccine-service-days`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -81,57 +137,52 @@ export default function VaccineServiceDayFormCreate({ onSave, onCancel }) {
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) throw new Error('Create failed');
-      await MySwal.fire('สำเร็จ', 'บันทึกวันให้บริการเรียบร้อยแล้ว', 'success');
+      if (!res.ok) {
+        const msg = await res.text();
+        throw new Error(msg);
+      }
+
+      await MySwal.fire('สำเร็จ', 'เพิ่มวันให้บริการเรียบร้อยแล้ว', 'success');
       onSave();
     } catch (err) {
-      console.error('Error creating service day:', err);
-      await MySwal.fire('ผิดพลาด', 'ไม่สามารถบันทึกข้อมูลได้', 'error');
+      console.error('เกิดข้อผิดพลาด:', err);
+      await MySwal.fire('เกิดข้อผิดพลาด', err.message, 'error');
     }
   };
 
   return (
     <div className="space-y-4 max-w-xl">
       <h2 className="text-xl font-semibold text-[#30266D]">สร้างวันให้บริการใหม่</h2>
-
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* เลือกวันในสัปดาห์ (multi select) */}
         <div>
-          <label className="block font-medium mb-2 text-[#30266D]">เลือกวันในสัปดาห์</label>
+          <label className="block mb-1 text-[#30266D]">เลือกวันในสัปดาห์</label>
           <Select
-            options={dayOptions}
+            options={updatedDayOptions}
             isMulti
             value={selectedDays}
-            onChange={handleDaysChange}
+            onChange={setSelectedDays}
             placeholder="เลือกวัน..."
-            noOptionsMessage={() => 'ไม่มีตัวเลือก'}
             styles={selectStyles}
           />
         </div>
-
-        {/* เลือกวัคซีน */}
         <div>
-          <label className="block font-medium mb-2 text-[#30266D]">เลือกวัคซีน</label>
+          <label className="block mb-1 text-[#30266D]">เลือกวัคซีน</label>
           <Select
             options={vaccines}
             value={selectedVaccine}
             onChange={setSelectedVaccine}
             placeholder="เลือกวัคซีน..."
-            noOptionsMessage={() => 'ไม่มีวัคซีนที่ตรงกับคำค้น'}
             styles={selectStyles}
           />
         </div>
-
-        {/* ปุ่ม */}
         <div className="flex justify-end space-x-2">
           <button
             type="button"
             onClick={onCancel}
-            className="bg-[#F9669D] text-white px-4 py-2 rounded-md"
+            className="bg-gray-300 text-[#30266D] px-4 py-2 rounded-md"
           >
             ยกเลิก
           </button>
-
           <button
             type="submit"
             className="bg-[#30266D] text-white px-4 py-2 rounded-md"
@@ -144,13 +195,11 @@ export default function VaccineServiceDayFormCreate({ onSave, onCancel }) {
   );
 }
 
-// 🎨 สไตล์ของ react-select
 const selectStyles = {
   control: (base) => ({
     ...base,
     backgroundColor: '#30266D',
     borderColor: '#30266D',
-    boxShadow: 'none',
     color: 'white',
   }),
   menu: (base) => ({
@@ -160,9 +209,14 @@ const selectStyles = {
   }),
   option: (base, state) => ({
     ...base,
-    backgroundColor: state.isFocused ? '#F9669D' : '#30266D',
+    backgroundColor: state.isDisabled
+      ? '#555' // สีเทาถ้า disabled
+      : state.isFocused
+      ? '#F9669D'
+      : '#30266D',
     color: 'white',
-    cursor: 'pointer',
+    cursor: state.isDisabled ? 'not-allowed' : 'pointer',
+    opacity: state.isDisabled ? 0.5 : 1,
   }),
   multiValue: (base) => ({
     ...base,

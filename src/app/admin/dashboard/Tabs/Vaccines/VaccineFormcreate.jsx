@@ -133,8 +133,17 @@ export default function VaccineFormcreate({ vaccine = {}, onSave, onCancel }) {
       if (!res.ok) throw new Error(await res.text());
       const resData = await res.json();
 
+      console.log('API response:', resData); // ดู response จริง
+
+      // รับ response แบบมี data หรือไม่มี data
+      const vaccineData = resData.data || resData;
+
       await MySwal.fire({ icon: 'success', title: 'บันทึกสำเร็จ' });
-      onSave({ id: resData.data.id, attributes: resData.data.attributes });
+
+      onSave({
+        id: vaccineData.id,
+        attributes: vaccineData.attributes,
+      });
     } catch (err) {
       await MySwal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message });
     } finally {
@@ -239,4 +248,3 @@ const customSelectStyles = {
     color: '#ccc',
   }),
 };
-

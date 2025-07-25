@@ -1,4 +1,3 @@
-// VaccineFormedit.jsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -45,13 +44,6 @@ export default function VaccineFormedit({ vaccine = {}, onSave, onCancel }) {
   }
 
   const timeOptions = generateTimeOptions();
-
-  function formatTimeThai24H(time24) {
-    if (!time24) return '';
-    const dt = dayjs(time24, 'HH:mm');
-    if (!dt.isValid()) return '';
-    return dt.format('HH:mm') + ' น.';
-  }
 
   function extractDateOnly(dateStr) {
     if (!dateStr) return '';
@@ -161,6 +153,11 @@ export default function VaccineFormedit({ vaccine = {}, onSave, onCancel }) {
       }
 
       const resData = await res.json();
+      console.log('Response from API:', resData);
+
+      if (!resData?.data?.id) {
+        throw new Error('Response จาก API ไม่มีข้อมูล id');
+      }
 
       await MySwal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', text: 'ข้อมูลวัคซีนถูกบันทึกเรียบร้อยแล้ว' });
 

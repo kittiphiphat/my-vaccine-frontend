@@ -99,8 +99,7 @@ export default function VaccineTimeSlotSection() {
     <div className="space-y-4">
       <div className="flex flex-col md:flex-row justify-between md:items-center gap-3">
         <h3 className="text-xl font-semibold text-[#30266D]">จัดการช่วงเวลาให้บริการ</h3>
-
-        <div className="flex flex-col md:flex-row items-center gap-2">
+        <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
           <Input
             placeholder="ค้นหาชื่อวัคซีน..."
             value={searchTerm}
@@ -116,7 +115,7 @@ export default function VaccineTimeSlotSection() {
         </div>
       </div>
 
-      <table className="w-full border-collapse border border-gray-200 shadow-sm rounded-lg overflow-hidden">
+      <table className="w-full border border-gray-300 rounded-md overflow-hidden shadow-sm">
         <thead className="bg-[#30266D] text-white select-none">
           <tr>
             <th className="py-3 px-4 text-left font-semibold">วัคซีน</th>

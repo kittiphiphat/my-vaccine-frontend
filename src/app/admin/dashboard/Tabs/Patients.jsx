@@ -16,20 +16,25 @@ export default function Patients() {
 
   const API_URL = `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/patients`;
 
-  const fetchPatients = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_URL}?filters[status][$eq]=active&pagination[page]=1&pagination[pageSize]=100`, {
-        credentials: 'include',
-      });
-      const data = await res.json();
-      setPatients(data.data || []);
-    } catch (error) {
-      console.error('เกิดข้อผิดพลาดในการโหลดผู้ป่วย:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+const fetchPatients = async () => {
+  setLoading(true);
+  try {
+    const params = new URLSearchParams({
+      'pagination[page]': '1',
+      'pagination[pageSize]': '100',
+    });
+    const res = await fetch(`${API_URL}?${params.toString()}`, {
+      credentials: 'include',
+    });
+    const data = await res.json();
+    setPatients(data.data || []);
+  } catch (error) {
+    console.error('เกิดข้อผิดพลาดในการโหลดผู้ป่วย:', error);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   useEffect(() => {
     fetchPatients();
@@ -45,40 +50,33 @@ export default function Patients() {
   }
 
   const handleDelete = async (id) => {
-    const result = await MySwal.fire({
-      title: 'ยืนยันการลบ',
-      text: 'คุณแน่ใจหรือไม่ว่าต้องการลบผู้ป่วยรายนี้?',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonText: 'ใช่, ลบเลย',
-      cancelButtonText: 'ยกเลิก',
+  const result = await MySwal.fire({
+    title: 'ยืนยันการลบ',
+    text: 'คุณแน่ใจหรือไม่ว่าต้องการลบผู้ป่วยรายนี้?',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'ใช่, ลบเลย',
+    cancelButtonText: 'ยกเลิก',
+  });
+
+  if (!result.isConfirmed) return;
+
+  try {
+    const res = await fetch(`${API_URL}/${id}`, {
+      method: 'DELETE',
+      credentials: 'include',
     });
 
-    if (!result.isConfirmed) return;
+    if (!res.ok) throw new Error('ลบไม่สำเร็จ');
 
-    try {
-      const res = await fetch(`${API_URL}/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          data: {
-            status: 'deleted',
-          },
-        }),
-      });
+    MySwal.fire('ลบแล้ว', 'ผู้ป่วยถูกลบเรียบร้อย', 'success');
+    fetchPatients();
+  } catch (error) {
+    console.error(error);
+    MySwal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถลบผู้ป่วยได้', 'error');
+  }
+};
 
-      if (!res.ok) throw new Error('ลบไม่สำเร็จ');
-
-      MySwal.fire('ลบแล้ว', 'ผู้ป่วยถูกลบเรียบร้อย', 'success');
-      fetchPatients();
-    } catch (error) {
-      console.error(error);
-      MySwal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถลบผู้ป่วยได้', 'error');
-    }
-  };
 
   const handleSave = () => {
     setEditingPatient(null);
@@ -127,7 +125,7 @@ export default function Patients() {
             : 'ไม่พบข้อมูลผู้ป่วย'}
         </p>
       ) : (
-        <table className="w-full border-collapse border border-gray-300 shadow-sm rounded-md overflow-hidden text-sm">
+        <table className="w-full border-collapse border border-gray-300 shadow-sm rounded-md overflow-hidden ">
           <thead className="bg-[#30266D] text-white">
             <tr>
               <th className="p-3 text-left">ชื่อ-นามสกุล</th>

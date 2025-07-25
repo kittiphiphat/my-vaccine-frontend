@@ -347,23 +347,33 @@ const renderChart = () => {
         ))}
       </div>
 
-     {chartType && (
-      <p className="text-center text-[#30266D] font-semibold text-lg mb-4 select-none">
-        {chartType === 'vaccine' && (
-          <>แสดงข้อมูลการจองวัคซีน: <span className="inline-block bg-pink-100 text-[#f10059] px-3 py-1 rounded-full font-semibold">{filters.vaccine}</span></>
-        )}
-        {chartType === 'gender' && (
-          <>แสดงข้อมูลการจองวัคซีนตามเพศของผู้ป่วย: <span className="inline-block bg-pink-100 text-[#f10059] px-3 py-1 rounded-full font-semibold">{filters.vaccine}</span></>
-        )}
-        {chartType === 'age' && (
-          <>แสดงข้อมูลการจองวัคซีนตามช่วงอายุ: <span className="inline-block bg-pink-100 text-[#f10059] px-3 py-1 rounded-full font-semibold">{filters.vaccine}</span></>
-        )}
-        {chartType === 'line' && (
-          <>แสดงข้อมูลการจองวัคซีนรายวัน: <span className="inline-block bg-pink-100 text-[#f10059] px-3 py-1 rounded-full font-semibold">{filters.vaccine}</span></>
-        )}
-      </p>
-    )}
+    {chartType && (
+      <div className="flex flex-wrap justify-center items-center gap-4 text-[#30266D] font-semibold text-lg mb-4 select-none">
+        <p>
+          สถานะ:{' '}
+          <span className="inline-block bg-purple-100 text-[#30266D] px-3 py-1 rounded-full">
+            {filters.status === 'confirmed' ? 'จองแล้ว' : 'ยกเลิก'}
+          </span>
+        </p>
 
+        <p>
+          วัคซีน:{' '}
+          <span className="inline-block bg-pink-100 text-[#f10059] px-3 py-1 rounded-full">
+            {filters.vaccine}
+          </span>
+        </p>
+
+        {(filters.startDate || filters.endDate) && (
+          <p>
+            ช่วงวันที่:{' '}
+            <span className="inline-block bg-gray-100 text-[#30266D] px-3 py-1 rounded-full">
+              {filters.startDate ? dayjs(filters.startDate).format('D MMM BBBB') : 'ไม่ระบุ'} -{' '}
+              {filters.endDate ? dayjs(filters.endDate).format('D MMM BBBB') : 'ไม่ระบุ'}
+            </span>
+          </p>
+        )}
+      </div>
+    )}
       <div className="flex justify-center overflow-auto">
         {renderChart()}
       </div>

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { Input } from '@/components/ui/input';
+import * as XLSX from 'xlsx';
 
 const MySwal = withReactContent(Swal);
 
@@ -12,7 +13,6 @@ export default function UsersManagement() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('admin');
   const [searchTerm, setSearchTerm] = useState('');
-  const [editingUser, setEditingUser] = useState(null);
 
   async function fetchUsers() {
     setLoading(true);
@@ -47,36 +47,24 @@ export default function UsersManagement() {
     if (!result.isConfirmed) return;
 
     try {
-      const meRes = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/users/me`, {
-        credentials: 'include',
-      });
-      const me = await meRes.json();
-
       const res = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/users/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        method: 'DELETE',
         credentials: 'include',
-        body: JSON.stringify({
-          is_deleted: true,
-          deleted_at: new Date().toISOString(),
-          deleted_by: me.id,
-        }),
       });
 
       if (!res.ok) {
         throw new Error('ไม่สามารถลบผู้ใช้งานได้');
       }
 
-      MySwal.fire('สำเร็จ!', 'ผู้ใช้งานถูกลบแบบ Soft Delete แล้ว', 'success');
-      fetchUsers();
+      setUsers((prev) => prev.filter((u) => u.id !== id));
+      MySwal.fire('สำเร็จ!', 'ผู้ใช้งานถูกลบแล้ว', 'success');
     } catch (error) {
       console.error(error);
       MySwal.fire('เกิดข้อผิดพลาด', error.message, 'error');
     }
   }
 
+  // กรอง users ตาม activeTab และ searchTerm
   const filteredUsers = users.filter(
     (user) =>
       user.role?.name?.toLowerCase() === activeTab &&
@@ -84,11 +72,30 @@ export default function UsersManagement() {
       user.username.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // ฟังก์ชัน Export ข้อมูล filteredUsers เป็น Excel
+  function exportToExcel() {
+  // เตรียมข้อมูลให้เหมาะสมกับ Excel โดยใช้หัวตารางภาษาไทย
+  const worksheetData = filteredUsers.map((user) => ({
+    'ชื่อผู้ใช้': user.username,
+    'อีเมล': user.email,
+    'บทบาท': user.role?.name || '-',
+  }));
+
+  // สร้าง worksheet และ workbook
+  const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'ผู้ใช้งาน');
+
+  // ดาวน์โหลดไฟล์ Excel
+  XLSX.writeFile(workbook, 'รายชื่อผู้ใช้งาน.xlsx');
+}
+
+
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">
       <h2 className="text-2xl font-semibold text-[#30266D]">จัดการผู้ใช้งานระบบ</h2>
-
-      <div className="flex flex-col md:flex-row justify-between gap-4 items-center">
+      <div className="flex flex-col md:flex-row justify-between items-center gap-4 w-full">
+        {/* ปุ่มแท็บ */}
         <div className="flex space-x-2">
           {['admin', 'patient'].map((tab) => (
             <button
@@ -104,25 +111,31 @@ export default function UsersManagement() {
             </button>
           ))}
         </div>
+        {/* กล่องค้นหา + ปุ่มดาวน์โหลด */}
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <Input
+            type="text"
+            placeholder="ค้นหาชื่อผู้ใช้..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full md:w-[250px]"
+          />
 
-        <Input
-          type="text"
-          placeholder="ค้นหาชื่อผู้ใช้..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full md:w-[250px]"
-        />
+          <button
+            onClick={exportToExcel}
+            className="bg-[#30266D] text-white px-4 py-2 rounded-md hover:bg-[#4a3b8e] transition whitespace-nowrap"
+          >
+            ดาวน์โหลด Excel
+          </button>
+        </div>
       </div>
-
-      {editingUser ? (
-        <p>กำลังแก้ไข...</p>
-      ) : loading ? (
+      {loading ? (
         <p className="text-center text-[#30266D]">กำลังโหลดข้อมูล...</p>
       ) : filteredUsers.length === 0 ? (
-        <p className="text-center text-gray-500">ไม่พบผู้ใช้งานในกลุ่มนี้</p>
+        <p className="text-center text-gray-500">ไม่พบผู้ใช้งาน</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full border text-sm border-collapse">
+          <table className="w-full border  border-collapse">
             <thead className="bg-[#30266D] text-white">
               <tr>
                 <th className="p-2 border border-white text-left">ชื่อผู้ใช้</th>

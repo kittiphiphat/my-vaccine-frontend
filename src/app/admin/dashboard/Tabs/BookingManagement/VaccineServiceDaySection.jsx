@@ -14,7 +14,7 @@ export default function VaccineServiceDaySection() {
   const [editingItem, setEditingItem] = useState(null);
   const [creatingItem, setCreatingItem] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [isLoading, setIsLoading] = useState(true); // ✅ เพิ่มตัวแปรโหลด
+  const [isLoading, setIsLoading] = useState(true); 
 
   useEffect(() => {
     fetchServiceDays();
@@ -105,9 +105,9 @@ export default function VaccineServiceDaySection() {
   });
 
   return (
-    <div className="space-y-6 p-4 max-w-5xl mx-auto">
+    <div className="space-y-4">
       <div className="flex flex-col md:flex-row justify-between md:items-center gap-3">
-        <h3 className="text-2xl font-bold text-[#30266D]">จัดการวันให้บริการวัคซีน</h3>
+        <h3 className="text-xl font-semibold text-[#30266D]">จัดการวันให้บริการวัคซีน</h3>
         <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
           <Input
             placeholder="ค้นหาชื่อวัคซีน..."
@@ -117,7 +117,7 @@ export default function VaccineServiceDaySection() {
           />
           <button
             onClick={() => setCreatingItem(true)}
-            className="px-5 py-2 bg-[#30266D] text-white rounded-md shadow transition  cursor-pointer"
+            className="px-4 py-2 bg-[#30266D] text-white rounded-md shadow transition  cursor-pointer"
           >
             + สร้างวันให้บริการใหม่
           </button>
@@ -125,14 +125,14 @@ export default function VaccineServiceDaySection() {
       </div>
 
       <table className="w-full border border-gray-300 rounded-md overflow-hidden shadow-sm">
-        <thead className="bg-[#30266D] text-white text-sm">
+        <thead className="bg-[#30266D] text-white  select-none">
           <tr>
             <th className="p-3 text-center">วันที่ให้บริการ</th>
             <th className="p-3 text-left">วัคซีนที่เกี่ยวข้อง</th>
             <th className="p-3 text-center">จัดการ</th>
           </tr>
         </thead>
-        <tbody className="text-gray-800 text-sm">
+        <tbody className="text-gray-800 ">
           {isLoading ? (
             <tr>
               <td colSpan={3} className="text-center text-gray-500 py-4 select-none">
@@ -163,10 +163,10 @@ export default function VaccineServiceDaySection() {
               return (
                 <tr key={id} className="border-t border-gray-200 hover:bg-gray-50 transition">
                   <td className="p-3 text-center font-medium">{thaiDays || '-'}</td>
-                  <td className="p-3 max-w-xs">
+                  <td className="p-3 max-w-sm">
                     {vaccine ? (
                       <span
-                        className="bg-[#fabbd2] text-[#30266D] text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap"
+                        className="bg-[#fabbd2] text-[#30266D] text-sm font-semibold px-2 py-0.5 rounded-full whitespace-nowrap"
                         title={vaccine.attributes?.title}
                       >
                         {vaccine.attributes?.title}

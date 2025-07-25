@@ -307,7 +307,7 @@ export function VaccineBookingDialog({ vaccine }) {
         endTime: timeLabel.end,
       },
     };
-      console.log('Booking payload:', payload);
+     
 
     try {
       setLoading(true);

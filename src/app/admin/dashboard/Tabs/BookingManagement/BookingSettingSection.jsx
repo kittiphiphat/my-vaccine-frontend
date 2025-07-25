@@ -138,7 +138,7 @@ export default function BookingSettingSection() {
         </div>
       </div>
 
-      <table className="w-full border-collapse border border-gray-200 shadow-sm rounded-lg overflow-hidden text-sm">
+      <table className="w-full border-collapse border border-gray-200 shadow-sm rounded-lg overflow-hidden">
         <thead className="bg-[#30266D] text-white select-none">
           <tr>
             <th className="py-3 px-4 text-left font-semibold">วัคซีน</th>

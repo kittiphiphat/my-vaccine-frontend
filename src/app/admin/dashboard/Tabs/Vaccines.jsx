@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import VaccineFormcreate from './Vaccines/VaccineFormcreate';
 import VaccinesList from './Vaccines/VaccinesList';
+import Swal from 'sweetalert2';
 import VaccineFormedit from './Vaccines/VaccineFormedit';
 
 export default function Vaccines() {
@@ -43,22 +44,23 @@ export default function Vaccines() {
   }, []);
 
   const handleDelete = async (id) => {
-    try {
-      const res = await fetch(`${API_URL}/${id}`, {
-        method: 'DELETE',
-      });
+  try {
+    const res = await fetch(`${API_URL}/${id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
 
-      if (res.ok) {
-        await fetchVaccines();
-      } else {
-        // แนะนำใช้ Swal (อย่าลืม import Swal ด้วย)
-        Swal.fire('ลบวัคซีนไม่สำเร็จ', '', 'error');
-      }
-    } catch (error) {
-      Swal.fire('เกิดข้อผิดพลาดในการลบวัคซีน', '', 'error');
-      console.error(error);
+    if (res.ok) {
+      await fetchVaccines();
+      Swal.fire('ลบวัคซีนสำเร็จ', '', 'success'); 
+    } else {
+      Swal.fire('ลบวัคซีนไม่สำเร็จ', '', 'error');
     }
-  };
+  } catch (error) {
+    Swal.fire('เกิดข้อผิดพลาดในการลบวัคซีน', '', 'error');
+    console.error(error);
+  }
+};
 
   const handleSave = async (savedVaccine) => {
     setEditingVaccine(null);

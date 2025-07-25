@@ -87,13 +87,14 @@ export default function Navbar() {
         {/* Logo */}
         <a href="#" onClick={handleLogoClick} className="flex items-center">
           <Image
-            src="http://localhost:1337/uploads/medcmu_25ea52b67a_3460d54cd5.png"
+            src="/medcmu.png"
             width={160}
             height={80}
             quality={100}
             alt="Logo"
             className="transition-transform duration-300 transform hover:scale-110"
           />
+          
         </a>
 
         {/* Desktop Menu */}

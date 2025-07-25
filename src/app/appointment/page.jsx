@@ -136,59 +136,60 @@ export default function AppointmentPage() {
     return items.slice(start, start + ITEMS_PER_PAGE);
   };
 
-  const renderAppointmentCard = (app) => (
-    <div
-      key={app.id}
-      className="bg-white border border-gray-200 rounded-xl shadow-sm p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
-    >
-      <div className="flex-1">
-        <h3 className="text-lg font-bold text-[#2C2E83]">
-          {app.attributes.vaccine.data.attributes.title}
-        </h3>
-        <p className="text-gray-600 text-sm mt-1">
-          {dayjs(app.attributes.bookingDate).locale('th').format('D MMMM')}{' '}
-          {dayjs(app.attributes.bookingDate).year() + 543}
-          • {formatTime(app.attributes.startTime)} - {formatTime(app.attributes.endTime)} น.
-        </p>
-        <div className="mt-2">
-          <span
-            className={`inline-block text-xs px-3 py-1 rounded-full font-semibold
-              ${
-                app.attributes.status === 'cancelled'
-                  ? 'bg-red-100 text-red-700'
-                  : app.attributes.status === 'confirmed'
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-yellow-100 text-yellow-700'
-              }`}
-          >
-            {app.attributes.status === 'cancelled'
-              ? 'ยกเลิกแล้ว'
+const renderAppointmentCard = (app) => (
+  <div
+    key={app.id}
+    className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 mt-4 flex flex-col md:flex-row justify-between md:items-center gap-y-4 gap-x-8"
+  >
+    {/* Left: Vaccine info */}
+    <div className="flex-1 space-y-2">
+      <h3 className="text-lg font-bold text-[#2C2E83]">
+        {app.attributes.vaccine.data.attributes.title}
+      </h3>
+      <p className="text-gray-600 text-sm">
+        {dayjs(app.attributes.bookingDate).locale('th').format('D MMMM')}
+        {' '}{dayjs(app.attributes.bookingDate).year() + 543}
+        • {formatTime(app.attributes.startTime)} - {formatTime(app.attributes.endTime)} น.
+      </p>
+      <span
+        className={`inline-block text-xs px-3 py-1 rounded-full font-semibold
+          ${
+            app.attributes.status === 'cancelled'
+              ? 'bg-red-100 text-red-700'
               : app.attributes.status === 'confirmed'
-              ? 'ยืนยันแล้ว'
-              : 'รอการยืนยัน'}
-          </span>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <button
-          onClick={() => router.push(`/appointment/${app.id}`)}
-          className="text-white bg-[#2C2E83] px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#1e1e5a] transition cursor-pointer"
-        >
-          ดูใบนัด
-        </button>
-
-        {app.attributes.status !== 'cancelled' && (
-          <button
-            onClick={() => handleCancel(app)}
-            className="bg-red-600 text-white text-sm font-medium rounded-lg px-4 py-2 hover:text-white  transition cursor-pointer"
-          >
-            ยกเลิก
-          </button>
-        )}
-      </div>
+              ? 'bg-green-100 text-green-700'
+              : 'bg-yellow-100 text-yellow-700'
+          }`}
+      >
+        {app.attributes.status === 'cancelled'
+          ? 'ยกเลิกแล้ว'
+          : app.attributes.status === 'confirmed'
+          ? 'ยืนยันแล้ว'
+          : 'รอการยืนยัน'}
+      </span>
     </div>
-  );
+
+    {/* Right: Buttons */}
+    <div className="flex flex-wrap gap-3 shrink-0 justify-end">
+      <button
+        onClick={() => router.push(`/appointment/${app.id}`)}
+        className="text-white bg-[#2C2E83] px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#1e1e5a] transition cursor-pointer"
+      >
+        ดูใบนัด
+      </button>
+
+      {app.attributes.status !== 'cancelled' && (
+        <button
+          onClick={() => handleCancel(app)}
+          className="bg-red-600 text-white text-sm font-medium rounded-lg px-4 py-2 hover:bg-red-700 transition cursor-pointer"
+        >
+          ยกเลิก
+        </button>
+      )}
+    </div>
+  </div>
+);
+
 
   const renderPagination = (totalItems, currentPage, setPage) => {
     const pageCount = Math.ceil(totalItems / ITEMS_PER_PAGE);

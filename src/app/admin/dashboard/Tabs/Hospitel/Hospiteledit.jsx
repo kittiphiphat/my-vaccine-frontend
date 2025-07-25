@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import Swal from 'sweetalert2';
 
 export default function HospitelEdit({ hospitel, onSave, onCancel, isNew = false }) {
   const [form, setForm] = useState({
@@ -30,35 +31,63 @@ export default function HospitelEdit({ hospitel, onSave, onCancel, isNew = false
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    const payload = {
-      data: {
-        ...form,
-      },
-    };
-
-    try {
-      if (isNew) {
-        // POST - สร้างใหม่
-        await axios.post(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/hospitels`, payload, {
-          withCredentials: true,
-        });
-      } else {
-        // PUT - แก้ไข
-        await axios.put(
-          `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/hospitels/${hospitel.id}`,
-          payload,
-          { withCredentials: true }
-        );
-      }
-
-      onSave(); // แจ้ง parent ว่าบันทึกเสร็จแล้ว
-    } catch (error) {
-      console.error('Error saving hospitel:', error);
-      alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
-    }
+  const payload = {
+    data: {
+      ...form,
+    },
   };
+
+  try {
+    // ถ้าเป็นการแก้ไข ให้แสดงกล่องยืนยันก่อน
+    if (!isNew) {
+      const result = await Swal.fire({
+        title: 'ยืนยันการแก้ไข?',
+        text: 'คุณต้องการบันทึกการเปลี่ยนแปลงใช่หรือไม่',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#30266D',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'ใช่, บันทึกเลย',
+        cancelButtonText: 'ยกเลิก',
+      });
+
+      if (!result.isConfirmed) {
+        return; // ถ้าไม่กด "ใช่" ให้หยุดเลย
+      }
+    }
+
+    if (isNew) {
+      await axios.post(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/hospitels`, payload, {
+        withCredentials: true,
+      });
+    } else {
+      await axios.put(
+        `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/hospitels/${hospitel.id}`,
+        payload,
+        { withCredentials: true }
+      );
+    }
+
+    await Swal.fire({
+      icon: 'success',
+      title: 'สำเร็จ',
+      text: isNew ? 'สร้างข้อมูลเรียบร้อยแล้ว' : 'บันทึกข้อมูลเรียบร้อยแล้ว',
+      confirmButtonColor: '#30266D',
+    });
+
+    onSave();
+  } catch (error) {
+    console.error('Error saving hospitel:', error);
+    Swal.fire({
+      icon: 'error',
+      title: 'เกิดข้อผิดพลาด',
+      text: 'ไม่สามารถบันทึกข้อมูลได้',
+    });
+  }
+};
+
 
   return (
     <form

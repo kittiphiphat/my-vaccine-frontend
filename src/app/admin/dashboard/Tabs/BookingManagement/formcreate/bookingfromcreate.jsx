@@ -15,15 +15,41 @@ export default function BookingSettingFormCreate({ onSave, onCancel }) {
   const [vaccine, setVaccine] = useState(null);
   const [vaccines, setVaccines] = useState([]);
 
-  useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccines`)
-      .then((res) => res.json())
-      .then((data) => setVaccines(data.data || []))
-      .catch((err) => {
-        console.error('Error fetching vaccines', err);
-        MySwal.fire('ผิดพลาด', 'โหลดข้อมูลวัคซีนล้มเหลว', 'error');
+useEffect(() => {
+  async function fetchData() {
+    try {
+      // ดึงวัคซีนทั้งหมด
+      const vaccinesRes = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccines?pagination[limit]=-1`, {
+        credentials: 'include',
       });
-  }, []);
+      const vaccinesData = await vaccinesRes.json();
+      const allVaccines = vaccinesData.data || [];
+
+      // ดึง booking settings ทั้งหมด
+      const bookingSettingsRes = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/booking-settings?pagination[limit]=-1&populate=vaccine`, {
+        credentials: 'include',
+      });
+      const bookingSettingsData = await bookingSettingsRes.json();
+      const bookingSettings = bookingSettingsData.data || [];
+
+      // ดึง vaccine id ที่ถูกใช้ใน booking setting
+      const usedVaccineIds = bookingSettings
+        .map(bs => bs.attributes.vaccine?.data?.id)
+        .filter(id => id !== undefined);
+
+      // กรองวัคซีนที่ยังไม่ถูกใช้ใน booking setting
+      const filteredVaccines = allVaccines.filter(v => !usedVaccineIds.includes(v.id));
+
+      setVaccines(filteredVaccines);
+    } catch (error) {
+      console.error('Error fetching data', error);
+      MySwal.fire('ผิดพลาด', 'โหลดข้อมูลวัคซีนล้มเหลว', 'error');
+    }
+  }
+
+  fetchData();
+}, []);
+
 
   const vaccineOptions = vaccines.map((v) => ({
     value: v.id,
@@ -78,6 +104,7 @@ export default function BookingSettingFormCreate({ onSave, onCancel }) {
             value={vaccine}
             onChange={setVaccine}
             placeholder="-- เลือกวัคซีน --"
+            noOptionsMessage={() => 'ไม่มีวัคซีนให้เลือก'}
             isClearable
             styles={customSelectStyles}
           />
