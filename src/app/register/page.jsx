@@ -39,7 +39,7 @@ export default function RegisterPage() {
 
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/local/register`,
+        `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/auth/local/register`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

@@ -128,7 +128,7 @@ export default function AppointmentDetailPage() {
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-3">
             <img
-              src={logoUrl.startsWith('http') ? logoUrl : `${process.env.NEXT_PUBLIC_STRAPI_URL}${logoUrl}`}
+              src='/medcmu.png'
               alt="Hospital Logo"
               className="h-12 w-auto"
             />

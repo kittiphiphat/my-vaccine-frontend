@@ -18,7 +18,7 @@ export default function GlobalErrorChecker() {
 
         if (res.status === 500) {
           // Redirect ไป check-server
-          sessionStorage.setItem("lastVisitedPath", window.location.pathname); // เก็บ path ปัจจุบัน
+          sessionStorage.setItem("lastVisitedPath", window.location.pathname); 
           window.location.href = "/check-server";
         }
       } catch (error) {
@@ -26,7 +26,7 @@ export default function GlobalErrorChecker() {
         sessionStorage.setItem("lastVisitedPath", window.location.pathname);
         window.location.href = "/check-server";
       }
-    }, 5000); // ตรวจสอบทุก 5 วินาที
+    }, 1000); 
 
     return () => clearInterval(interval);
   }, [pathname]);

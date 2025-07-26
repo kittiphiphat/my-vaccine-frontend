@@ -32,26 +32,30 @@ export default function VaccineServiceDayFormCreate({ onSave, onCancel }) {
   useEffect(() => {
   async function fetchVaccines() {
     try {
-      // ดึงวัคซีนทั้งหมดที่ใช้ time slot
+      // 1. ดึงวัคซีนทั้งหมด (ไม่กรอง useTimeSlots)
       const vaccineRes = await fetch(
-        `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccines?pagination[limit]=-1&filters[useTimeSlots][$eq]=true`,
+        `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccines?pagination[limit]=-1`,
         { credentials: 'include' }
       );
       const vaccineJson = await vaccineRes.json();
       const allVaccines = vaccineJson.data;
 
-      // ดึง vaccine-service-days ทั้งหมด
+      // 2. ดึง vaccine-service-days ทั้งหมด
       const dayRes = await fetch(
         `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccine-service-days?pagination[limit]=-1&populate=vaccine`,
         { credentials: 'include' }
       );
       const dayJson = await dayRes.json();
+
+      // 3. หา id วัคซีนที่มีวันให้บริการแล้ว
       const usedVaccineIds = new Set(
-        dayJson.data.map((d) => d.attributes.vaccine?.data?.id)
+        dayJson.data.map((d) => d.attributes.vaccine?.data?.id).filter(Boolean)
       );
 
-      // กรองเฉพาะวัคซีนที่ยังไม่ถูกใช้
+      // 4. กรองวัคซีนที่ยังไม่ถูกใช้ใน vaccine-service-days
       const available = allVaccines.filter((v) => !usedVaccineIds.has(v.id));
+
+      // 5. สร้าง options สำหรับ Select
       const options = available.map((v) => ({
         value: v.id,
         label: v.attributes?.title || `วัคซีน ID: ${v.id}`,
@@ -66,6 +70,7 @@ export default function VaccineServiceDayFormCreate({ onSave, onCancel }) {
 
   fetchVaccines();
 }, []);
+
 
 
   // เมื่อเลือกวัคซีน ให้โหลด usedDays ใหม่
@@ -155,17 +160,6 @@ export default function VaccineServiceDayFormCreate({ onSave, onCancel }) {
       <h2 className="text-xl font-semibold text-[#30266D]">สร้างวันให้บริการใหม่</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block mb-1 text-[#30266D]">เลือกวันในสัปดาห์</label>
-          <Select
-            options={updatedDayOptions}
-            isMulti
-            value={selectedDays}
-            onChange={setSelectedDays}
-            placeholder="เลือกวัน..."
-            styles={selectStyles}
-          />
-        </div>
-        <div>
           <label className="block mb-1 text-[#30266D]">เลือกวัคซีน</label>
           <Select
             options={vaccines}
@@ -175,6 +169,17 @@ export default function VaccineServiceDayFormCreate({ onSave, onCancel }) {
             styles={selectStyles}
           />
         </div>
+          <div>
+            <label className="block mb-1 text-[#30266D]">เลือกวันในสัปดาห์</label>
+            <Select
+              options={updatedDayOptions}
+              isMulti
+              value={selectedDays}
+              onChange={setSelectedDays}
+              placeholder="เลือกวัน..."
+              styles={selectStyles}
+            />
+          </div>
         <div className="flex justify-end space-x-2">
           <button
             type="button"
