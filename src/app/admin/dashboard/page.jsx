@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import axios from 'axios';
 import dynamic from 'next/dynamic';
 import {
@@ -14,7 +14,7 @@ import {
   FileText,
 } from 'lucide-react';
 
-const Vaccines = dynamic(() => import('./Tabs/Vaccines'), { ssr: false });
+const Vaccines = dynamic(() => import('./Tabs/Vaccines'), { ssr: false, loading: () => <p>Loading...</p> });
 const BookingManagement = dynamic(() => import('./Tabs/BookingManagement'), { ssr: false });
 const Reports = dynamic(() => import('./Tabs/Reports'), { ssr: false });
 const UsersTab = dynamic(() => import('./Tabs/Users'), { ssr: false });
@@ -42,19 +42,24 @@ const COMPONENTS = {
   log: Logs,
 };
 
+function getTabFromUrl() {
+  if (typeof window === 'undefined') return null;
+  const params = new URLSearchParams(window.location.search);
+  return params.get('tab');
+}
+
 export default function Dashboard() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const tabParam = searchParams.get('tab');
 
-  const [activeTab, setActiveTab] = useState(tabParam || 'vaccines');
+
+  const [activeTab, setActiveTab] = useState('vaccines');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (tabParam && tabParam !== activeTab) {
-      setActiveTab(tabParam);
-    }
-  }, [tabParam]);
+    // โหลด tab จาก URL ตอน client side
+    const tab = getTabFromUrl();
+    if (tab) setActiveTab(tab);
+  }, []);
 
   useEffect(() => {
     const checkAdmin = async () => {

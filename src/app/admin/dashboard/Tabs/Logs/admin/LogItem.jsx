@@ -261,10 +261,37 @@ export default function LogItem({ log, onExportRow }) {
   const actionInfo = actionLabels[action] || { label: action, color: 'bg-gray-100 text-gray-800' };
 
   const copyToClipboard = (json) => {
-    navigator.clipboard.writeText(JSON.stringify(json, null, 2))
-      .then(() => alert('คัดลอกข้อมูล JSON แล้ว'))
-      .catch(() => alert('คัดลอกข้อมูลไม่สำเร็จ'));
-  };
+  navigator.clipboard.writeText(JSON.stringify(json, null, 2))
+    .then(() => {
+      MySwal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'คัดลอกข้อมูล JSON แล้ว',
+        showConfirmButton: false,
+        timer: 2000,
+        timerProgressBar: true,
+        customClass: {
+          popup: 'my-toast',
+        },
+      });
+    })
+    .catch(() => {
+      MySwal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'error',
+        title: 'คัดลอกข้อมูลไม่สำเร็จ',
+        showConfirmButton: false,
+        timer: 2000,
+        timerProgressBar: true,
+         customClass: {
+          popup: 'my-toast',
+        },
+      });
+      
+    });
+};
 
   return (
     <li className="border rounded-xl shadow-sm p-6 bg-white hover:shadow-md transition">
