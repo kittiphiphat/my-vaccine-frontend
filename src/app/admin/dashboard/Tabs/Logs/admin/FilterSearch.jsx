@@ -11,7 +11,6 @@ const actionLabels = {
   booking_setting_created: 'สร้างตั้งค่าการจอง',
   booking_setting_updated: 'แก้ไขตั้งค่าการจอง',
   booking_setting_deleted: 'ลบการตั้งค่าช่วงเวลาการจอง',
-  user_deleted: 'ลบข้อมูลผู้ใช้',
   vaccine_service_day_deleted: 'ลบวันให้บริการวัคซีน',
   vaccine_time_slot_created: 'สร้างช่วงเวลาวัคซีน',
   vaccine_time_slot_deleted: 'ลบช่วงเวลาวัคซีน',
