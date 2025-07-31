@@ -18,7 +18,7 @@ export default function LogsPage() {
   const router = useRouter();
 
   const tabFromQuery = searchParams.get('tab') || 'log';
-  console.log('tabFromQuery:', tabFromQuery);
+
 
   const [activeTab, setActiveTab] = useState(tabFromQuery);
 
