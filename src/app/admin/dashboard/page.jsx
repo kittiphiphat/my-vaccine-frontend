@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect, useState, Suspense, lazy } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import axios from 'axios';
+import dynamic from 'next/dynamic';
 import {
   Syringe,
   CalendarCheck,
@@ -12,13 +13,14 @@ import {
   Hospital,
   FileText,
 } from 'lucide-react';
-const Vaccines = lazy(() => import('./Tabs/Vaccines'));
-const BookingManagement = lazy(() => import('./Tabs/BookingManagement'));
-const Reports = lazy(() => import('./Tabs/Reports'));
-const UsersTab = lazy(() => import('./Tabs/Users'));
-const Patients = lazy(() => import('./Tabs/Patients'));
-const HospitalInfo = lazy(() => import('./Tabs/HospitalInfo'));
-const Logs = lazy(() => import('./Tabs/Logs'));
+
+const Vaccines = dynamic(() => import('./Tabs/Vaccines'), { ssr: false });
+const BookingManagement = dynamic(() => import('./Tabs/BookingManagement'), { ssr: false });
+const Reports = dynamic(() => import('./Tabs/Reports'), { ssr: false });
+const UsersTab = dynamic(() => import('./Tabs/Users'), { ssr: false });
+const Patients = dynamic(() => import('./Tabs/Patients'), { ssr: false });
+const HospitalInfo = dynamic(() => import('./Tabs/HospitalInfo'), { ssr: false });
+const Logs = dynamic(() => import('./Tabs/Logs'), { ssr: false });
 
 const TAB_LIST = [
   { id: 'vaccines', label: 'จัดการวัคซีน', icon: Syringe },
@@ -48,7 +50,6 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState(tabParam || 'vaccines');
   const [loading, setLoading] = useState(true);
 
-  // sync activeTab เมื่อ query param เปลี่ยน
   useEffect(() => {
     if (tabParam && tabParam !== activeTab) {
       setActiveTab(tabParam);
@@ -77,7 +78,7 @@ export default function Dashboard() {
 
   const handleTabChange = (id) => {
     setActiveTab(id);
-    router.replace(`/admin/dashboard?tab=${id}`, { scroll: false }); 
+    router.replace(`/admin/dashboard?tab=${id}`, { scroll: false });
   };
 
   if (loading) {
@@ -103,7 +104,7 @@ export default function Dashboard() {
 
         <nav className="flex-1 overflow-y-auto py-6">
           <ul className="space-y-2 px-2 cursor-pointer">
-            {TAB_LIST.map(({ id, label , icon: Icon}) => (
+            {TAB_LIST.map(({ id, label, icon: Icon }) => (
               <li key={id}>
                 <button
                   onClick={() => handleTabChange(id)}
@@ -116,7 +117,7 @@ export default function Dashboard() {
                     }`}
                   aria-current={activeTab === id ? 'page' : undefined}
                 >
-                   <Icon className="w-5 h-5 mr-3" />
+                  <Icon className="w-5 h-5 mr-3" />
                   {label}
                 </button>
               </li>
@@ -130,19 +131,13 @@ export default function Dashboard() {
       </aside>
 
       <main className="flex-1 p-10 overflow-y-auto rounded-l-3xl">
-        <Suspense fallback={
-          <div className="flex justify-center items-center h-96">
-            <p className="text-gray-500 text-lg select-none animate-pulse">
-              กำลังโหลดข้อมูล...
-            </p>
-          </div>
-        }>
-          {CurrentComponent ? <CurrentComponent /> : (
-            <p className="text-center text-gray-600 text-lg mt-20 select-none">
-              ไม่พบข้อมูล
-            </p>
-          )}
-        </Suspense>
+        {CurrentComponent ? (
+          <CurrentComponent />
+        ) : (
+          <p className="text-center text-gray-600 text-lg mt-20 select-none">
+            ไม่พบข้อมูล
+          </p>
+        )}
       </main>
     </div>
   );
