@@ -34,43 +34,54 @@ export default function UsersManagement() {
     fetchUsers();
   }, []);
 
-  async function handleDelete(id) {
-    const result = await MySwal.fire({
-      title: 'ยืนยันการลบ',
-      text: 'คุณแน่ใจหรือไม่ว่าต้องการลบผู้ใช้นี้?',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonText: 'ใช่, ลบเลย',
-      cancelButtonText: 'ยกเลิก',
+ async function handleDelete(id) {
+  const result = await MySwal.fire({
+    title: 'ยืนยันการเปลี่ยนสถานะ',
+    text: 'คุณแน่ใจหรือไม่ว่าต้องการยกเลิกผู้ใช้นี้?',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'ใช่, ยกเลิกเลย',
+    cancelButtonText: 'ยกเลิก',
+  });
+
+  if (!result.isConfirmed) return;
+
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/users/${id}`, {
+      method: 'PUT',   // ใช้ PUT สำหรับอัพเดต
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        status: 'cancelled'
+      }),
     });
 
-    if (!result.isConfirmed) return;
-
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/users/${id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-
-      if (!res.ok) {
-        throw new Error('ไม่สามารถลบผู้ใช้งานได้');
-      }
-
-      setUsers((prev) => prev.filter((u) => u.id !== id));
-      MySwal.fire('สำเร็จ!', 'ผู้ใช้งานถูกลบแล้ว', 'success');
-    } catch (error) {
-      console.error(error);
-      MySwal.fire('เกิดข้อผิดพลาด', error.message, 'error');
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error?.message || 'ไม่สามารถลบข้อมูลผู้ใช้งานได้');
     }
+
+    // รีเฟรชข้อมูลหลังอัพเดต
+    await fetchUsers();
+
+    MySwal.fire('สำเร็จ!', 'ลบข้อมูลผู้ใช้งานสำเร็จ', 'success');
+  } catch (error) {
+    console.error('Error updating status:', error);
+    MySwal.fire('เกิดข้อผิดพลาด', error.message, 'error');
   }
+}
+
+
 
   // กรอง users ตาม activeTab และ searchTerm
   const filteredUsers = users.filter(
-    (user) =>
-      user.role?.name?.toLowerCase() === activeTab &&
-      !user.is_deleted &&
-      user.username.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  (user) =>
+    user.role?.name?.toLowerCase() === activeTab &&
+    user.status !== 'cancelled' &&   
+    user.username.toLowerCase().includes(searchTerm.toLowerCase())
+);
 
   // ฟังก์ชัน Export ข้อมูล filteredUsers เป็น Excel
   function exportToExcel() {
@@ -151,7 +162,7 @@ export default function UsersManagement() {
                   <td className="p-2 border border-white">{user.email}</td>
                   <td className="p-2 border border-white">{user.role?.name || '-'}</td>
                   <td className="p-2 border border-white text-center space-x-2">
-                    <button
+                   <button
                       className="bg-[#F9669D] text-white px-3 py-1 rounded-md hover:bg-[#cc4e7a] cursor-pointer"
                       onClick={() => handleDelete(user.id)}
                     >

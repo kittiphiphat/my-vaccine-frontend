@@ -31,7 +31,7 @@ export default function Vaccines() {
 
     const data = await res.json();
     setVaccines(data.data || []);
-    console.log(data);
+    
   } catch (error) {
     console.error('เกิดข้อผิดพลาดในการโหลดวัคซีน:', error);
   } finally {

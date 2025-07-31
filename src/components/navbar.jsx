@@ -158,46 +158,71 @@ export default function Navbar() {
 
       {/* Mobile menu */}
       {open && (
-        <div className="md:hidden bg-[#30266D] text-white px-6 py-6 space-y-6 font-medium border-t border-[#1f1b47] rounded-b-xl">
-          {isLoggedIn && role !== 'Admin' && (
-            <>
-              <Link
-                href="/vaccines"
-                onClick={() => setOpen(false)}
-                className="block py-2 px-4 rounded hover:bg-[#F9669D]/30"
-              >
-                วัคซีน
-              </Link>
-              <Link
-                href="/appointment"
-                onClick={() => setOpen(false)}
-                className="block py-2 px-4 rounded hover:bg-[#F9669D]/30"
-              >
-                ใบนัดของฉัน
-              </Link>
-            </>
-          )}
-          {isLoggedIn ? (
-            <button
-              onClick={() => {
-                logout();
-                setOpen(false);
-              }}
-              className="w-full bg-[#F9669D] text-[#30266D] py-3 rounded-full font-bold flex justify-center items-center gap-2"
-            >
-              <LogOut size={20} /> ออกจากระบบ
-            </button>
-          ) : (
-            <Link
-              href="/login"
-              onClick={() => setOpen(false)}
-              className="w-full bg-[#F9669D] text-[#30266D] py-3 rounded-full font-bold flex justify-center items-center gap-2"
-            >
-              <LogIn size={20} /> เข้าสู่ระบบ
-            </Link>
-          )}
-        </div>
+  <div className="md:hidden bg-[#30266D] text-white px-6 py-6 space-y-6 font-medium border-t border-[#1f1b47] rounded-b-xl">
+
+    
+    {isLoggedIn && username && (
+      <div className="flex items-center gap-3 text-white font-semibold text-lg">
+      <div className="w-9 h-9 flex items-center justify-center bg-[#F9669D] text-white rounded-full shadow-md">
+        <UserRound size={20} />
+      </div>
+      {username}
+    </div>
+    )}
+
+    
+    {isLoggedIn && role === 'Admin' && (
+      <Link
+        href="/admin/dashboard"
+        onClick={() => setOpen(false)}
+        className="block py-2 px-4 rounded hover:bg-[#F9669D]/30"
+      >
+        แดชบอร์ด
+      </Link>
+    )}
+
+    {isLoggedIn && role !== 'Admin' && (
+      <>
+        <Link
+          href="/vaccines"
+          onClick={() => setOpen(false)}
+          className="block py-2 px-4 rounded hover:bg-[#F9669D]/30"
+        >
+          วัคซีน
+        </Link>
+        <Link
+          href="/appointment"
+          onClick={() => setOpen(false)}
+          className="block py-2 px-4 rounded hover:bg-[#F9669D]/30"
+        >
+          ใบนัดของฉัน
+        </Link>
+      </>
+    )}
+
+
+    {isLoggedIn ? (
+      <button
+        onClick={() => {
+          logout();
+          setOpen(false);
+        }}
+        className="w-full bg-[#F9669D] text-[#30266D] py-3 rounded-full font-bold flex justify-center items-center gap-2"
+      >
+        <LogOut size={20} /> ออกจากระบบ
+      </button>
+    ) : (
+      <Link
+        href="/login"
+        onClick={() => setOpen(false)}
+        className="w-full bg-[#F9669D] text-[#30266D] py-3 rounded-full font-bold flex justify-center items-center gap-2"
+      >
+        <LogIn size={20} /> เข้าสู่ระบบ
+      </Link>
+    )}
+  </div>
       )}
+
     </nav>
   );
 }

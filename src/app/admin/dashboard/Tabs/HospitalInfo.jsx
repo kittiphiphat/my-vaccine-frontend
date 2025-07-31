@@ -16,17 +16,25 @@ export default function Hospitels() {
     fetchHospitels();
   }, []);
 
-  const fetchHospitels = async () => {
-    try {
-      const res = await fetch(`${API_URL}?populate=*`, {
-        credentials: 'include',
-      });
-      const data = await res.json();
-      setHospitels(data.data || []);
-    } catch (error) {
-      console.error('Error fetching hospitels:', error);
-    }
-  };
+ const fetchHospitels = async (page = 1, pageSize = 10) => {
+  try {
+    const params = new URLSearchParams({
+      'pagination[page]': page.toString(),
+      'pagination[pageSize]': pageSize.toString(),
+      'sort': 'name:asc',      // เรียงชื่อโรงพยาบาลจากน้อยไปมาก
+      'populate': '*',
+    });
+
+    const res = await fetch(`${API_URL}?${params.toString()}`, {
+      credentials: 'include',
+    });
+    const data = await res.json();
+    setHospitels(data.data || []);
+  } catch (error) {
+    console.error('Error fetching hospitels:', error);
+  }
+};
+
 
   const handleEdit = (hospitel) => {
     setEditingHospitel(hospitel);

@@ -18,6 +18,12 @@ body {
 
 }
 
+.my-toast {
+  margin-top: 60px !important; 
+  color: #111827 !important; 
+  font-weight: 600;
+}
+
 
 :root {
 

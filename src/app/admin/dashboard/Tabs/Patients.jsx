@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import PatientsEdit from './Patients/Patientsedit';
+import * as XLSX from 'xlsx';
 import { Input } from '@/components/ui/input'; 
 
 const MySwal = withReactContent(Swal);
@@ -49,13 +50,37 @@ const fetchPatients = async () => {
     return phone;
   }
 
-  const handleDelete = async (id) => {
+  const exportToExcel = () => {
+  const excelData = filteredPatients.map(({ attributes }, index) => ({
+    ลำดับ: index + 1,
+    ชื่อ: attributes.first_name,
+    นามสกุล: attributes.last_name,
+    เพศ: attributes.gender === 'female' ? 'หญิง' : 'ชาย',
+    อายุ: attributes.age ?? '-',
+    เบอร์โทร: formatPhoneNumber(attributes.phone),
+    อีเมล: attributes.email ?? '-',
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(excelData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'รายชื่อผู้ป่วย');
+
+  const excelBuffer = XLSX.write(workbook, {
+    bookType: 'xlsx',
+    type: 'array',
+  });
+
+  const blob = new Blob([excelBuffer], { type: 'application/octet-stream' });
+  saveAs(blob, `รายชื่อผู้ป่วย.xlsx`);
+};
+
+const handleDelete = async (id) => {
   const result = await MySwal.fire({
-    title: 'ยืนยันการลบ',
-    text: 'คุณแน่ใจหรือไม่ว่าต้องการลบผู้ป่วยรายนี้?',
+    title: 'ยืนยันการยกเลิก',
+    text: 'คุณต้องการยกเลิกผู้ป่วยรายนี้หรือไม่?',
     icon: 'warning',
     showCancelButton: true,
-    confirmButtonText: 'ใช่, ลบเลย',
+    confirmButtonText: 'ใช่, ยกเลิก',
     cancelButtonText: 'ยกเลิก',
   });
 
@@ -63,17 +88,23 @@ const fetchPatients = async () => {
 
   try {
     const res = await fetch(`${API_URL}/${id}`, {
-      method: 'DELETE',
+      method: 'PUT',
       credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        data: { status: 'cancelled' },
+      }),
     });
 
-    if (!res.ok) throw new Error('ลบไม่สำเร็จ');
+    if (!res.ok) throw new Error('ไม่สามารถเปลี่ยนสถานะได้');
 
-    MySwal.fire('ลบแล้ว', 'ผู้ป่วยถูกลบเรียบร้อย', 'success');
+    MySwal.fire('สำเร็จ', 'ผู้ป่วยถูกยกเลิกเรียบร้อยแล้ว', 'success');
     fetchPatients();
   } catch (error) {
     console.error(error);
-    MySwal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถลบผู้ป่วยได้', 'error');
+    MySwal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถดำเนินการได้', 'error');
   }
 };
 
@@ -87,10 +118,13 @@ const fetchPatients = async () => {
     setEditingPatient(null);
   };
 
-  const filteredPatients = patients.filter(({ attributes }) => {
-    const fullName = `${attributes.first_name} ${attributes.last_name}`.toLowerCase();
-    return fullName.includes(searchTerm.toLowerCase());
-  });
+ const filteredPatients = patients.filter(({ attributes }) => {
+  const fullName = `${attributes.first_name} ${attributes.last_name}`.toLowerCase();
+  return (
+    attributes.status !== 'cancelled' &&
+    fullName.includes(searchTerm.toLowerCase())
+  );
+});
 
   if (editingPatient) {
     return (
@@ -108,12 +142,22 @@ const fetchPatients = async () => {
     <div className="max-w-6xl mx-auto p-4 space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <h2 className="text-2xl font-semibold text-[#30266D]">จัดการข้อมูลผู้ป่วย</h2>
-        <Input
-          placeholder="ค้นหาชื่อผู้ป่วย..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full md:w-[250px]"
-        />
+
+        {/* กล่องค้นหา + ปุ่มดาวน์โหลด */}
+        <div className="flex flex-row items-center gap-2 w-full md:w-auto">
+          <Input
+            placeholder="ค้นหาชื่อผู้ป่วย..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full md:w-[250px]"
+          />
+          <button
+            onClick={exportToExcel}
+            className="bg-[#30266D] text-white rounded hover:bg-[#F9669D] px-4 py-2 transition"
+          >
+            ดาวน์โหลด Excel
+          </button>
+        </div>
       </div>
 
       {loading ? (
