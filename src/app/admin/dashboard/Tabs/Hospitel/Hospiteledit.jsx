@@ -40,7 +40,6 @@ export default function HospitelEdit({ hospitel, onSave, onCancel, isNew = false
   };
 
   try {
-    // ถ้าเป็นการแก้ไข ให้แสดงกล่องยืนยันก่อน
     if (!isNew) {
       const result = await Swal.fire({
         title: 'ยืนยันการแก้ไข?',
@@ -54,7 +53,7 @@ export default function HospitelEdit({ hospitel, onSave, onCancel, isNew = false
       });
 
       if (!result.isConfirmed) {
-        return; // ถ้าไม่กด "ใช่" ให้หยุดเลย
+        return; 
       }
     }
 

@@ -92,7 +92,7 @@ export default function VaccineStatisticsUI() {
   line: (() => {
   const dateStats = countBy(b => b.attributes.bookingDate?.slice(0, 10) ?? 'ไม่ระบุวัน');
   return Object.keys(dateStats).sort().map(date => ({
-    date, // ← เก็บเป็น ISO string เช่น '2025-07-21'
+    date, 
     ใบนัด: dateStats[date]
   }));
 })()
@@ -101,14 +101,14 @@ const exportExcel = () => {
     let data;
     if (chartType === 'line') {
       data = stats.line.map(item => {
-        const thaiDateStr = item.date; // เช่น '21 กรกฎาคม 2568'
+        const thaiDateStr = item.date; 
         const [dayStr, monthStr, yearStr] = thaiDateStr.split(' ');
 
         const thaiMonths = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
           'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
         const monthIndex = thaiMonths.indexOf(monthStr);
 
-        // แปลงปี พ.ศ. เป็น ค.ศ. (ปี - 543)
+       
         const year = parseInt(yearStr) - 543;
         const day = parseInt(dayStr);
 
@@ -123,7 +123,7 @@ const exportExcel = () => {
       data = toChartData(stats[chartType]);
     }
 
-    // แปลง key name/value เป็นภาษาไทยตาม chartType
+
     if (chartType !== 'line') {
       data = data.map(({ name, value, ...rest }) => {
         let newNameKey = '';
@@ -150,7 +150,7 @@ const exportExcel = () => {
         };
       });
     } else {
-      // สำหรับ line chart เปลี่ยน key 'date' เป็น 'วันที่' และ 'ใบนัด' เป็น 'จำนวน'
+      
       data = data.map(({ date, ใบนัด, ...rest }) => ({
         วันที่: date,
         จำนวน: ใบนัด,
@@ -159,10 +159,10 @@ const exportExcel = () => {
     }
 
     const ws = XLSX.utils.json_to_sheet(data, {
-      dateNF: '[$-41E]d mmmm yyyy' // รูปแบบวันที่ภาษาไทย Excel (locale ไทย)
+      dateNF: '[$-41E]d mmmm yyyy' 
     });
 
-    // เปลี่ยน header คอลัมน์วันที่ (สำหรับ line chart)
+   
     if (chartType === 'line') {
       const range = XLSX.utils.decode_range(ws['!ref']);
       for(let C = range.s.c; C <= range.e.c; ++C) {

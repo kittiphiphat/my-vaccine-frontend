@@ -13,7 +13,7 @@ export default function PatientInfo() {
   const router = useRouter();
 
   const [userId, setUserId] = useState(null);
-  const [loading, setLoading] = useState(true); // เริ่มต้นเป็น true เลย
+  const [loading, setLoading] = useState(true); 
   const [isAlreadyFilled, setIsAlreadyFilled] = useState(false);
   const [formData, setFormData] = useState({
     first_name: "",
@@ -39,8 +39,8 @@ export default function PatientInfo() {
         const role = (user.role?.name || "").toLowerCase();
 
         if (role === "admin") {
-          router.replace("/admin/dashboard"); // redirect ทันที
-          return; // หยุดต่อ ไม่เซ็ต loading=false เพื่อไม่ให้ UI form แสดง
+          router.replace("/admin/dashboard"); 
+          return; 
         }
 
         // ถ้าไม่ใช่ admin
@@ -49,7 +49,7 @@ export default function PatientInfo() {
           ...prev,
           email: user.email || "",
         }));
-        setLoading(false); // เมื่อรู้ว่าไม่ใช่ admin ให้แสดง form
+        setLoading(false);
       } catch (error) {
         console.error("เช็ค role ผิดพลาด", error);
         router.replace("/login");
@@ -60,7 +60,7 @@ export default function PatientInfo() {
   }, [router]);
 
   if (loading) {
-    // แสดง loading จนกว่าจะรู้ role ว่าไม่ใช่ admin
+   
     return (
       <p className="text-center mt-10 text-[#30266D] font-semibold">
         กำลังโหลดข้อมูล...
@@ -68,7 +68,7 @@ export default function PatientInfo() {
     );
   }
 
-  // --- ส่วน handleChange, handleSubmit และ UI form เหมือนเดิม ---
+
 
   const handleChange = (e) => {
     const { name, value } = e.target;

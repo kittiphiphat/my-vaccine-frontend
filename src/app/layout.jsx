@@ -1,12 +1,12 @@
-import { Prompt } from "next/font/google";  // นำเข้า Prompt font
+import { Prompt } from "next/font/google";  
 import "./globals.css";
 import ClientWrapper from "@/components/ClientWrapper";
 
 // ใช้ฟอนต์ Prompt และกำหนดน้ำหนักทั้งหมด
 const prompt = Prompt({
-  variable: "--font-prompt", // กำหนดตัวแปรสำหรับฟอนต์
-  subsets: ["latin"],        // ระบุ subset ของฟอนต์
-  weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"], // ระบุน้ำหนักทั้งหมด
+  variable: "--font-prompt", 
+  subsets: ["latin"],        
+  weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"], 
 });
 
 export const metadata = {

@@ -14,7 +14,7 @@ export default function BookingSettingSection() {
   const [editing, setEditing] = useState(null);
   const [creating, setCreating] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [isLoading, setIsLoading] = useState(true); // 🔧 เพิ่มสถานะโหลด
+  const [isLoading, setIsLoading] = useState(true); 
 
   useEffect(() => {
     fetchData();

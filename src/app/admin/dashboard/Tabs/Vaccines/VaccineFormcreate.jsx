@@ -133,9 +133,8 @@ export default function VaccineFormcreate({ vaccine = {}, onSave, onCancel }) {
       if (!res.ok) throw new Error(await res.text());
       const resData = await res.json();
 
-      console.log('API response:', resData); // ดู response จริง
 
-      // รับ response แบบมี data หรือไม่มี data
+      
       const vaccineData = resData.data || resData;
 
       await MySwal.fire({ icon: 'success', title: 'บันทึกสำเร็จ' });

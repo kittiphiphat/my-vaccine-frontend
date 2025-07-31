@@ -16,10 +16,10 @@ export default function Home() {
           });
 
           if (res.status !== 500) {
-            return true; // Strapi ตอบกลับแล้ว ไม่ใช่ error ภายใน
+            return true; 
           }
         } catch (err) {
-          // wait 1 second and retry
+          
         }
 
         await new Promise((res) => setTimeout(res, 1000));

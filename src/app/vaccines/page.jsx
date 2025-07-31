@@ -10,7 +10,6 @@ import { useRouter } from 'next/navigation';
 import { Filter, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { io } from 'socket.io-client';
 
-// ตั้งค่า dayjs plugin และ locale
 dayjs.extend(isBetween);
 dayjs.extend(isSameOrAfter);
 dayjs.extend(isSameOrBefore);
@@ -26,7 +25,7 @@ const dayMapShort = {
   6: 'เสาร์',
 };
 
-// Spinner component เพิ่มเติม
+
 function Spinner() {
   return (
     <div className="flex justify-center items-center py-10">
@@ -61,7 +60,7 @@ export default function VaccineList() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      setError(null);  // เคลียร์ error ก่อนโหลดใหม่
+      setError(null);  
 
       const userRes = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/users/me`, { credentials: 'include' });
       const user = await userRes.json();
@@ -229,7 +228,7 @@ export default function VaccineList() {
     return data.slice(start, start + itemsPerPage);
   };
 
-  // แก้ไขเงื่อนไข ageOverlap ให้ครอบคลุมช่วงทับซ้อน
+  
   useEffect(() => {
     if (!patient) return setFiltered([]);
 
@@ -274,7 +273,7 @@ export default function VaccineList() {
     <main className="max-w-7xl mx-auto p-6">
       <h1 className="text-3xl font-bold text-[#30266D] mb-6 text-center sm:text-left">รายการวัคซีน</h1>
 
-      {/* Search and toggle filters */}
+
       <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
         <input
           type="text"
@@ -295,7 +294,7 @@ export default function VaccineList() {
         </button>
       </div>
 
-      {/* Error message */}
+
       {error && (
         <div
           role="alert"
@@ -306,7 +305,7 @@ export default function VaccineList() {
         </div>
       )}
 
-      {/* Filters */}
+
       {showFilters && (
         <div className="bg-gray-50 p-6 rounded-md shadow mb-8 space-y-6">
           <div className="flex flex-col sm:flex-row gap-4">
@@ -379,7 +378,7 @@ export default function VaccineList() {
         </div>
       )}
 
-      {/* Header จำนวนวัคซีนและปุ่มเรียง */}
+
       <div className="flex justify-between items-center text-sm text-gray-600 mb-6">
         <p>พบทั้งหมด {availableVaccines.length} รายการ</p>
         <button
@@ -392,7 +391,7 @@ export default function VaccineList() {
         </button>
       </div>
 
-      {/* แสดงรายการวัคซีน */}
+
       {availableVaccines.length === 0 ? (
         <p className="text-center text-gray-500">ไม่พบวัคซีนที่ตรงกับเงื่อนไข</p>
       ) : (
@@ -443,7 +442,7 @@ export default function VaccineList() {
         </div>
       )}
 
-      {/* Pagination */}
+
       {totalPages > 1 && (
         <div className="flex justify-center mt-10 gap-3">
           {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (

@@ -21,7 +21,7 @@ export default function Vaccines() {
   setLoading(true);
   try {
     const res = await fetch(`${API_URL}?populate=*&pagination[pageSize]=1000`, {
-      credentials: 'include', // สำคัญมาก!
+      credentials: 'include', 
     });
 
     if (res.status === 403) {

@@ -13,7 +13,7 @@ export default function VaccineTimeSlotSection() {
   const [editingSlot, setEditingSlot] = useState(null);
   const [creatingSlot, setCreatingSlot] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [loading, setLoading] = useState(true); // เพิ่มสถานะโหลด
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchTimeSlots();

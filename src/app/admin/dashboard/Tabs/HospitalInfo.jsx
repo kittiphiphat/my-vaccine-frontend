@@ -21,7 +21,7 @@ export default function Hospitels() {
     const params = new URLSearchParams({
       'pagination[page]': page.toString(),
       'pagination[pageSize]': pageSize.toString(),
-      'sort': 'name:asc',      // เรียงชื่อโรงพยาบาลจากน้อยไปมาก
+      'sort': 'name:asc',  
       'populate': '*',
     });
 
@@ -71,14 +71,12 @@ export default function Hospitels() {
   const cleaned = phone.replace(/\D/g, '');
 
   if (cleaned.length === 10) {
-    // เบอร์มือถือ
     return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
   } else if (cleaned.length === 9) {
-    // เบอร์บ้าน (เช่น 053936539)
     return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
   }
 
-  return phone; // คืนค่าตามเดิมถ้าไม่เข้าเงื่อนไข
+  return phone; 
 }
 
   return (

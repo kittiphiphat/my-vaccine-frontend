@@ -23,7 +23,6 @@ export default function VaccineServiceDayFormCreate({ onSave, onCancel }) {
     { value: 6, label: 'เสาร์' },
   ];
 
-  // สร้าง options โดย disable วันที่ถูกใช้แล้ว
   const updatedDayOptions = dayOptions.map((day) => ({
     ...day,
     isDisabled: usedDays.has(day.value),
@@ -32,7 +31,7 @@ export default function VaccineServiceDayFormCreate({ onSave, onCancel }) {
   useEffect(() => {
   async function fetchVaccines() {
     try {
-      // 1. ดึงวัคซีนทั้งหมด (ไม่กรอง useTimeSlots)
+    
       const vaccineRes = await fetch(
         `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccines?pagination[limit]=-1`,
         { credentials: 'include' }
@@ -40,22 +39,19 @@ export default function VaccineServiceDayFormCreate({ onSave, onCancel }) {
       const vaccineJson = await vaccineRes.json();
       const allVaccines = vaccineJson.data;
 
-      // 2. ดึง vaccine-service-days ทั้งหมด
+      
       const dayRes = await fetch(
         `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccine-service-days?pagination[limit]=-1&populate=vaccine`,
         { credentials: 'include' }
       );
       const dayJson = await dayRes.json();
 
-      // 3. หา id วัคซีนที่มีวันให้บริการแล้ว
       const usedVaccineIds = new Set(
         dayJson.data.map((d) => d.attributes.vaccine?.data?.id).filter(Boolean)
       );
 
-      // 4. กรองวัคซีนที่ยังไม่ถูกใช้ใน vaccine-service-days
       const available = allVaccines.filter((v) => !usedVaccineIds.has(v.id));
 
-      // 5. สร้าง options สำหรับ Select
       const options = available.map((v) => ({
         value: v.id,
         label: v.attributes?.title || `วัคซีน ID: ${v.id}`,
@@ -73,7 +69,6 @@ export default function VaccineServiceDayFormCreate({ onSave, onCancel }) {
 
 
 
-  // เมื่อเลือกวัคซีน ให้โหลด usedDays ใหม่
   useEffect(() => {
     async function fetchUsedDays() {
       if (!selectedVaccine) return;
@@ -215,7 +210,7 @@ const selectStyles = {
   option: (base, state) => ({
     ...base,
     backgroundColor: state.isDisabled
-      ? '#555' // สีเทาถ้า disabled
+      ? '#555' 
       : state.isFocused
       ? '#F9669D'
       : '#30266D',

@@ -48,7 +48,7 @@ export default function UsersManagement() {
 
   try {
     const res = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/users/${id}`, {
-      method: 'PUT',   // ใช้ PUT สำหรับอัพเดต
+      method: 'PUT',  
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
@@ -63,7 +63,7 @@ export default function UsersManagement() {
       throw new Error(errorData.error?.message || 'ไม่สามารถลบข้อมูลผู้ใช้งานได้');
     }
 
-    // รีเฟรชข้อมูลหลังอัพเดต
+  
     await fetchUsers();
 
     MySwal.fire('สำเร็จ!', 'ลบข้อมูลผู้ใช้งานสำเร็จ', 'success');

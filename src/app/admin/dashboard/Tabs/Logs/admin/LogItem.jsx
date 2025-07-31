@@ -2,6 +2,11 @@
 
 import React, { useState } from 'react';
 import { Copy, ChevronDown, ChevronUp } from 'lucide-react';
+import Swal from 'sweetalert2';
+import withReactContent from 'sweetalert2-react-content';
+
+const MySwal = withReactContent(Swal);
+
 
 const actionLabels = {
   login: { label: 'เข้าสู่ระบบ', color: 'bg-green-100 text-green-700' },
@@ -17,6 +22,8 @@ const actionLabels = {
   vaccine_time_slot_created: { label: 'สร้างช่วงเวลาวัคซีน', color: 'bg-cyan-100 text-cyan-700' },
   vaccine_time_slot_deleted: { label: 'ลบช่วงเวลาวัคซีน', color: 'bg-pink-100 text-pink-700' },
   vaccine_service_day_created: { label: 'สร้างวันให้บริการวัคซีน', color: 'bg-lime-100 text-lime-700' },
+  hospitel_detail_created: { label: 'สร้างข้อมูลรายละเอียดใบนัด', color: 'bg-fuchsia-100 text-fuchsia-900' },
+  hospitel_detail_updated: { label: 'แก้ไขข้อมูลรายละเอียดใบนัด', color: 'bg-fuchsia-100 text-fuchsia-900' },
 };
 
 const fieldLabels = {
@@ -251,7 +258,7 @@ function renderDetailsInThai(details, action) {
   );
 }
 
-export default function LogItem({ log, onExportRow }) {
+export default function LogItem({ log }) {
   const { id, attributes } = log;
   const { action, message, timestamp, details } = attributes;
   const [openDetails, setOpenDetails] = useState(false);

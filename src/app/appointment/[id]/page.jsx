@@ -124,7 +124,6 @@ export default function AppointmentDetailPage() {
         id="printArea"
         className="bg-[#30266D] border border-gray-300 rounded-2xl shadow-md p-6 w-full max-w-xl text-[#FAF9FE]"
       >
-        {/* Header */}
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-3">
             <img
@@ -139,7 +138,6 @@ export default function AppointmentDetailPage() {
           </div>
         </div>
 
-        {/* รายละเอียด */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-base mt-6">
           {/* ฝั่งซ้าย */}
           <div className="space-y-3">
@@ -175,7 +173,6 @@ export default function AppointmentDetailPage() {
             </div>
           </div>
 
-          {/* ฝั่งขวา */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <Syringe className="w-5 h-5 text-[#F9669D]" />
@@ -191,7 +188,6 @@ export default function AppointmentDetailPage() {
               </span>
             </div>
 
-            {/* สถานที่ */}
             <div className="flex items-start gap-2">
               <MapPin className="w-5 h-5 text-[#F9669D] mt-1" />
               <div className="leading-tight">
@@ -222,7 +218,6 @@ export default function AppointmentDetailPage() {
           </div>
         </div>
 
-        {/* ข้อความเพิ่มเติม */}
         <div className="text-xs text-center text-gray-300 mt-6 leading-snug border-t pt-4">
           <p>{hospitelData.warningtext || 'กรุณามาถึงก่อนเวลานัดอย่างน้อย 10 นาที และนำบัตรประชาชนมาแสดงทุกครั้ง'}</p>
           <p>{hospitelData.subwarningtext || 'หากไม่สามารถมาตามนัด กรุณาโทรแจ้งล่วงหน้า'}</p>
@@ -230,7 +225,6 @@ export default function AppointmentDetailPage() {
         </div>
       </div>
 
-      {/* ปุ่ม */}
       <div className="mt-6 flex gap-4">
         <Button
           variant="outline"

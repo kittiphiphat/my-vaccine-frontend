@@ -4,68 +4,21 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 
+
 export default function CheckServerPage() {
   const router = useRouter();
-
-  const [loadSteps, setLoadSteps] = useState({
-    health: false,
-    user: false,
-    navigate: false,
-  });
-
-  const stepsTotal = 3;
-  const doneCount = Object.values(loadSteps).filter(Boolean).length;
-  const progress = Math.round((doneCount / stepsTotal) * 100);
-
   const [isDown, setIsDown] = useState(true);
+  const [progress, setProgress] = useState(0);
   const [elapsedTime, setElapsedTime] = useState(0);
-  const timerInterval = useRef<NodeJS.Timeout | null>(null);
 
-  const checkStrapiHealth = async () => {
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/healthz`);
-      if (!res.ok) throw new Error("Health check failed");
-      setLoadSteps((prev) => ({ ...prev, health: true }));
-      setIsDown(false);
-    } catch {
-      setIsDown(true);
-      setLoadSteps({ health: false, user: false, navigate: false });
-    }
-  };
+  const progressInterval = useRef(null);
+  const healthCheckInterval = useRef(null);
+  const timerInterval = useRef(null);
+  const isDownRef = useRef(isDown);
 
-  const checkUserAndRedirect = async () => {
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/users/me?populate=role`, {
-        credentials: "include",
-      });
-
-      if (!res.ok) throw new Error("User not authenticated");
-      setLoadSteps((prev) => ({ ...prev, user: true }));
-
-      const data = await res.json();
-      const roleName =
-        data?.role?.name?.toLowerCase() ||
-        data?.data?.attributes?.role?.data?.attributes?.name?.toLowerCase() ||
-        null;
-
-      const lastPath = sessionStorage.getItem("lastVisitedPath");
-
-      setTimeout(() => {
-        setLoadSteps((prev) => ({ ...prev, navigate: true }));
-
-        if (roleName === "admin") {
-          sessionStorage.removeItem("lastVisitedPath");
-          router.replace("/admin/dashboard");
-        } else if (lastPath && lastPath !== "/check-server") {
-          router.replace(lastPath);
-        } else {
-          router.replace("/welcome");
-        }
-      }, 500);
-    } catch (err) {
-      router.replace("/login");
-    }
-  };
+  useEffect(() => {
+    isDownRef.current = isDown;
+  }, [isDown]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -76,20 +29,44 @@ export default function CheckServerPage() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  useEffect(() => {
-    checkStrapiHealth();
-    const interval = setInterval(checkStrapiHealth, 5000);
-    return () => clearInterval(interval);
-  }, []);
+  async function checkStrapiHealth() {
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/healthz`);
+      if (!res.ok) throw new Error("Server unhealthy");
+
+      if (isDownRef.current) {
+        setIsDown(false);
+        setProgress(0);
+        setElapsedTime(0);
+
+        if (progressInterval.current) clearInterval(progressInterval.current);
+        progressInterval.current = setInterval(() => {
+          setProgress((prev) => {
+            if (prev >= 100) {
+              clearInterval(progressInterval.current);
+              progressInterval.current = null;
+              return 100;
+            }
+            return prev + 1;
+          });
+        }, 60);
+      }
+    } catch {
+      setIsDown(true);
+      setProgress(0);
+      if (progressInterval.current) clearInterval(progressInterval.current);
+      progressInterval.current = null;
+    }
+  }
 
   useEffect(() => {
     if (isDown) {
+      if (timerInterval.current) clearInterval(timerInterval.current);
       timerInterval.current = setInterval(() => {
         setElapsedTime((prev) => prev + 1);
       }, 1000);
     } else {
       if (timerInterval.current) clearInterval(timerInterval.current);
-      setElapsedTime(0);
     }
     return () => {
       if (timerInterval.current) clearInterval(timerInterval.current);
@@ -97,10 +74,49 @@ export default function CheckServerPage() {
   }, [isDown]);
 
   useEffect(() => {
-    if (loadSteps.health && !loadSteps.user) {
-      checkUserAndRedirect();
+    checkStrapiHealth();
+    healthCheckInterval.current = setInterval(checkStrapiHealth, 10000);
+    return () => {
+      clearInterval(healthCheckInterval.current);
+      clearInterval(progressInterval.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (progress === 100 && !isDown) {
+      (async () => {
+        try {
+          const res = await fetch(
+            `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/users/me?populate=role`,
+            { credentials: "include" }
+          );
+          if (res.status === 200) {
+            const data = await res.json();
+            const roleName =
+              data?.role?.name?.toLowerCase() ||
+              data?.data?.attributes?.role?.data?.attributes?.name?.toLowerCase() ||
+              null;
+
+            const lastPath = sessionStorage.getItem("lastVisitedPath");
+
+            if (roleName === "admin") {
+              sessionStorage.removeItem("lastVisitedPath");
+              router.replace("/admin/dashboard");
+            } else if (lastPath && lastPath !== "/check-server") {
+              router.replace(lastPath);
+            } else {
+              router.replace("/welcome");
+            }
+          } else {
+            router.replace("/login");
+          }
+        } catch (err) {
+          console.error("Error checking user:", err);
+          router.replace("/login");
+        }
+      })();
     }
-  }, [loadSteps.health]);
+  }, [progress, isDown, router]);
 
   const minutes = Math.floor(elapsedTime / 60);
   const seconds = elapsedTime % 60;
@@ -109,7 +125,7 @@ export default function CheckServerPage() {
     .padStart(2, "0")}`;
 
   return (
-    <div className="flex items-center justify-center min-h-screen px-6 select-none">
+    <div className="flex items-center justify-center min-h-screen px-6  select-none">
       <div className="relative max-w-md w-full bg-white rounded-3xl shadow-2xl p-10 text-center ring-4 ring-[#30266D]">
         <div className="mb-6">
           <Image

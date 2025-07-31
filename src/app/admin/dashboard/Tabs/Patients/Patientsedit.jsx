@@ -34,7 +34,7 @@ export default function PatientsEdit({ patient, onSave, onCancel }) {
     }));
   };
 
-  // สำหรับ react-select แก้ไข gender
+
   const handleGenderChange = (selectedOption) => {
     setFormData(prev => ({
       ...prev,

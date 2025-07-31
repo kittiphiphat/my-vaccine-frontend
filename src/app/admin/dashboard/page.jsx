@@ -56,7 +56,6 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // โหลด tab จาก URL ตอน client side
     const tab = getTabFromUrl();
     if (tab) setActiveTab(tab);
   }, []);

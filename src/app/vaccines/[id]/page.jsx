@@ -78,7 +78,7 @@ export default function VaccineDetailPage() {
         </button>
       </div>
 
-      {/* ข้อมูลวัคซีน */}
+
       <div className="text-center space-y-2">
         <h1 className="text-3xl font-bold text-[#30266D]">{attr.title || 'ไม่ระบุชื่อวัคซีน'}</h1>
         <p className="text-gray-600 text-base">{attr.description || 'ไม่มีคำอธิบาย'}</p>
@@ -124,7 +124,6 @@ export default function VaccineDetailPage() {
         </InfoItem>
       </div>
 
-      {/* ปุ่มจอง */}
       <div className="pt-6 text-center no-print">
         <VaccineBookingDialog vaccine={vaccine} />
       </div>

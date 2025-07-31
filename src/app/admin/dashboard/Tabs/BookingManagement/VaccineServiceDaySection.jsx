@@ -22,7 +22,7 @@ export default function VaccineServiceDaySection() {
 
   async function fetchServiceDays() {
     try {
-      setIsLoading(true); // ✅ เริ่มโหลด
+      setIsLoading(true); 
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccine-service-days?populate=vaccine`,
         { credentials: 'include' }
@@ -32,7 +32,7 @@ export default function VaccineServiceDaySection() {
     } catch (error) {
       console.error('Error fetching service days:', error);
     } finally {
-      setIsLoading(false); // ✅ จบโหลด
+      setIsLoading(false); 
     }
   }
 

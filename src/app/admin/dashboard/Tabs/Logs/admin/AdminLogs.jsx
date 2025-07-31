@@ -16,11 +16,13 @@ export default function AdminLogs() {
   const [filterAction, setFilterAction] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const logsPerPage = 10;
+  const logsPerPage = 20;
 
   useEffect(() => {
     setLoading(true);
-    axios.get(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/admin-logs`, { withCredentials: true })
+    axios.get(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/admin-logs?pagination[pageSize]=10000`, {
+  withCredentials: true,
+})
       .then(res => setLogs(res.data.data))
       .catch(console.error)
       .finally(() => setLoading(false));

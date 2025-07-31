@@ -132,7 +132,7 @@ export function VaccineBookingDialog({ vaccine }) {
     return true;
   }
 
-  // ฟังก์ชัน format เวลาให้แสดงแค่ HH:mm
+  
   function formatTimeHHMM(timeStr) {
     if (!timeStr) return '';
     // กรณีเวลาอาจมี format 00:00:00 หรือ 00:00
@@ -373,7 +373,6 @@ export function VaccineBookingDialog({ vaccine }) {
             </div>
           </div>
 
-          {/* Time Slot Section */}
           <div className="w-full">
             <label className="block font-semibold text-[#30266D] text-sm mb-2">เลือกเวลา</label>
             {date ? (

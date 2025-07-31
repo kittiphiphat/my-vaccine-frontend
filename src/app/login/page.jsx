@@ -13,7 +13,7 @@ export default function LoginPage() {
   const handleLogin = async (e) => {
     e.preventDefault();
 
-    // ตรวจสอบว่ากรอกข้อมูลครบถ้วนหรือไม่
+   
     if (!identifier || !password) {
       Swal.fire({
         icon: "warning",
@@ -25,7 +25,7 @@ export default function LoginPage() {
     }
 
     try {
-      // ส่งคำขอไปที่ API สำหรับการเข้าสู่ระบบ
+  
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/auth/custom-login`,
         {
@@ -47,7 +47,7 @@ export default function LoginPage() {
         throw new Error(errorMessage);
       }
 
-      // แจ้ง component อื่น ๆ ว่าผู้ใช้ล็อกอินสำเร็จ
+   
       window.dispatchEvent(new CustomEvent("user-logged-in"));
       sessionStorage.setItem("user-just-logged-in", "true");
 
@@ -59,7 +59,6 @@ export default function LoginPage() {
         return;
       }
 
-      // ตรวจสอบว่าผู้ใช้มีข้อมูลผู้ป่วยหรือไม่
       const patientRes = await fetch(
         `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/patients?filters[user][id][$eq]=${userId}&populate=user`,
         {
@@ -72,9 +71,9 @@ export default function LoginPage() {
         Array.isArray(patientData.data) && patientData.data.length > 0;
 
       if (!hasPatients) {
-        router.push("/patient"); // ถ้ายังไม่มีข้อมูลผู้ป่วยให้ไปกรอกข้อมูลผู้ป่วย
+        router.push("/patient"); 
       } else {
-        router.push("/welcome"); // ไปยังหน้าต้อนรับหลังจากล็อกอินสำเร็จ
+        router.push("/welcome"); 
       }
     } catch (err) {
       // แสดงข้อผิดพลาด
@@ -99,7 +98,7 @@ export default function LoginPage() {
           MedCMU Hospital
         </h1>
 
-        {/* ใช้ motion.form สำหรับการแอนิเมชั่น */}
+      
         <motion.form
           onSubmit={handleLogin}
           initial={{ opacity: 0, y: 50 }}

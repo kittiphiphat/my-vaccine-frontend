@@ -18,26 +18,22 @@ export default function BookingSettingFormCreate({ onSave, onCancel }) {
 useEffect(() => {
   async function fetchData() {
     try {
-      // ดึงวัคซีนทั้งหมด
       const vaccinesRes = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccines?pagination[limit]=-1`, {
         credentials: 'include',
       });
       const vaccinesData = await vaccinesRes.json();
       const allVaccines = vaccinesData.data || [];
 
-      // ดึง booking settings ทั้งหมด
       const bookingSettingsRes = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/booking-settings?pagination[limit]=-1&populate=vaccine`, {
         credentials: 'include',
       });
       const bookingSettingsData = await bookingSettingsRes.json();
       const bookingSettings = bookingSettingsData.data || [];
 
-      // ดึง vaccine id ที่ถูกใช้ใน booking setting
       const usedVaccineIds = bookingSettings
         .map(bs => bs.attributes.vaccine?.data?.id)
         .filter(id => id !== undefined);
 
-      // กรองวัคซีนที่ยังไม่ถูกใช้ใน booking setting
       const filteredVaccines = allVaccines.filter(v => !usedVaccineIds.includes(v.id));
 
       setVaccines(filteredVaccines);
@@ -96,7 +92,6 @@ useEffect(() => {
     <div className="space-y-4">
       <h2 className="text-xl font-semibold text-[#30266D]">สร้างการจองล่วงหน้าใหม่</h2>
       <form onSubmit={handleSubmit} className="space-y-4 max-w-md">
-        {/* วัคซีน */}
         <div>
           <label className="block mb-1 font-semibold text-[#30266D]">วัคซีน</label>
           <Select
@@ -110,7 +105,6 @@ useEffect(() => {
           />
         </div>
 
-        {/* วันล่วงหน้า */}
         <div>
           <label className="block mb-1 font-semibold text-[#30266D]">จองล่วงหน้า (วัน)</label>
           <input
@@ -121,7 +115,6 @@ useEffect(() => {
           />
         </div>
 
-        {/* เวลากั้นการจอง */}
         <div>
           <label className="block mb-1 font-semibold text-[#30266D]">เวลากั้นการจอง (นาที)</label>
           <input
@@ -132,7 +125,6 @@ useEffect(() => {
           />
         </div>
 
-        {/* ความยาวช่วงเวลา */}
         <div>
           <label className="block mb-1 font-semibold text-[#30266D]">ช่วงเวลา (นาที)</label>
           <input
@@ -143,7 +135,6 @@ useEffect(() => {
           />
         </div>
 
-        {/* สถานะ */}
         <div>
           <label className="block mb-1 font-semibold text-[#30266D]">สถานะ</label>
           <Select
@@ -157,7 +148,6 @@ useEffect(() => {
           />
         </div>
 
-        {/* ปุ่ม */}
         <div className="flex space-x-2">
           <button type="submit" className="bg-[#30266D] text-white px-4 py-2 rounded-md">
             บันทึก

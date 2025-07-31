@@ -26,7 +26,7 @@ export default function RegisterPage() {
       return;
     }
 
-    // ตรวจสอบรหัสผ่านซ้ำ
+
     if (password !== confirmPassword) {
       Swal.fire({
         icon: "error",

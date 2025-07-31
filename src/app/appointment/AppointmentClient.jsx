@@ -50,7 +50,6 @@ export default function AppointmentClient() {
       });
 
       if (!userRes.ok) {
-        // ถ้าไม่ได้ล็อกอินหรือ token หมดอายุ ให้ redirect ไป login
         router.push('/login');
         return;
       }
@@ -72,7 +71,6 @@ export default function AppointmentClient() {
       const result = await res.json();
       setAppointments(result.data || []);
     } catch (error) {
-      // ถ้า error อื่นๆ เช่น network ก็ alert ได้
       alert('โหลดข้อมูลไม่สำเร็จ');
     } finally {
       setLoading(false);
