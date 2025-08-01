@@ -11,7 +11,7 @@ import {
   Users,
   UserCheck,
   Hospital,
-  FileText,
+  Blinds,
 } from 'lucide-react';
 
 const Vaccines = dynamic(() => import('./Tabs/Vaccines'), { ssr: false, loading: () => <p>Loading...</p> });
@@ -29,7 +29,7 @@ const TAB_LIST = [
   { id: 'users', label: 'ข้อมูลผู้ใช้งาน', icon: Users },
   { id: 'patients', label: 'ข้อมูลผู้ป่วย', icon: UserCheck },
   { id: 'hospital', label: 'ข้อมูลรายละเอียดใบนัด', icon: Hospital },
-  { id: 'log', label: 'ข้อมูลรายละเอียดการทำงาน', icon: FileText },
+  { id: 'log', label: 'ข้อมูลรายละเอียดการทำงาน', icon: Blinds },
 ];
 
 const COMPONENTS = {

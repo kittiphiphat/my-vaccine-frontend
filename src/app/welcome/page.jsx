@@ -131,7 +131,8 @@ export default function WelcomeBack() {
               disabled={isEntering}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className="bg-gradient-to-r from-[#F9669D] to-[#30266D] text-white px-8 py-4 text-lg font-bold rounded-full flex items-center justify-center gap-3 shadow-lg transition-all disabled:opacity-50"
+              className="bg-gradient-to-r from-[#F9669D] to-[#30266D] text-white px-8 py-4 text-lg font-bold rounded-full 
+              flex items-center justify-center gap-3 shadow-lg transition-all disabled:opacity-50 cursor-pointer"
             >
               <SendHorizontal className="w-6 h-6" />
               เข้าสู่หน้าหลัก

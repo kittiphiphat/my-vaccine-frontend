@@ -25,7 +25,6 @@ const dayMapShort = {
   6: 'เสาร์',
 };
 
-
 function Spinner() {
   return (
     <div className="flex justify-center items-center py-10">
@@ -39,7 +38,7 @@ export default function VaccineList() {
   const [vaccines, setVaccines] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);  // state เก็บ error
+  const [error, setError] = useState(null);  
 
   const [searchTerm, setSearchTerm] = useState('');
   const [ageMinFilter, setAgeMinFilter] = useState('');
@@ -228,7 +227,6 @@ export default function VaccineList() {
     return data.slice(start, start + itemsPerPage);
   };
 
-  
   useEffect(() => {
     if (!patient) return setFiltered([]);
 
@@ -244,7 +242,7 @@ export default function VaccineList() {
 
       const ageOverlap =
         minAge !== null && maxAge !== null
-          ? !(v.max_age < minAge || v.min_age > maxAge) // ทับซ้อนกันจริง ๆ
+          ? !(v.max_age < minAge || v.min_age > maxAge)
           : minAge !== null
           ? v.max_age >= minAge
           : maxAge !== null
@@ -273,7 +271,6 @@ export default function VaccineList() {
     <main className="max-w-7xl mx-auto p-6">
       <h1 className="text-3xl font-bold text-[#30266D] mb-6 text-center sm:text-left">รายการวัคซีน</h1>
 
-
       <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
         <input
           type="text"
@@ -294,7 +291,6 @@ export default function VaccineList() {
         </button>
       </div>
 
-
       {error && (
         <div
           role="alert"
@@ -304,7 +300,6 @@ export default function VaccineList() {
           {error}
         </div>
       )}
-
 
       {showFilters && (
         <div className="bg-gray-50 p-6 rounded-md shadow mb-8 space-y-6">
@@ -378,7 +373,6 @@ export default function VaccineList() {
         </div>
       )}
 
-
       <div className="flex justify-between items-center text-sm text-gray-600 mb-6">
         <p>พบทั้งหมด {availableVaccines.length} รายการ</p>
         <button
@@ -391,13 +385,18 @@ export default function VaccineList() {
         </button>
       </div>
 
-
       {availableVaccines.length === 0 ? (
         <p className="text-center text-gray-500">ไม่พบวัคซีนที่ตรงกับเงื่อนไข</p>
       ) : (
         <div className="grid gap-8 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {paged.map((v) => {
             const remaining = Math.max(v.max_quota - v.booked, 0);
+            const serviceDaysText = v.serviceDays.length
+              ? v.serviceDays
+                  .sort((a, b) => a - b)
+                  .map((d) => dayMapShort[d] || `วันไม่รู้จัก (${d})`)
+                  .join(', ')
+              : 'ไม่ระบุวันให้บริการ';
             return (
               <div
                 key={v.id}
@@ -412,6 +411,10 @@ export default function VaccineList() {
                     <span className="font-semibold text-[#30266D]">เปิดจอง:</span>{' '}
                     {v.bookingStart.format('D MMM')} {v.bookingStart.year() + 543} –{' '}
                     {v.bookingEnd.format('D MMM')} {v.bookingEnd.year() + 543}
+                  </p>
+                  <p>
+                    <span className="font-semibold text-[#30266D]">วันให้บริการ:</span>{' '}
+                    {serviceDaysText}
                   </p>
                   <p>
                     <span className="font-semibold text-[#F9669D]">
@@ -441,7 +444,6 @@ export default function VaccineList() {
           })}
         </div>
       )}
-
 
       {totalPages > 1 && (
         <div className="flex justify-center mt-10 gap-3">
