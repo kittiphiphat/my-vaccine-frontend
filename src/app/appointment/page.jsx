@@ -1,10 +1,11 @@
 import { Suspense } from 'react';
 import AppointmentClient from './AppointmentClient';
+import LoadingFallback from '@/components/LoadingFallback';
 
 
 export default function AppointmentPage() {
   return (
-    <Suspense fallback={<p>กำลังโหลดข้อมูล...</p>}>
+    <Suspense fallback={<LoadingFallback />}>
       <AppointmentClient />
     </Suspense>
   );

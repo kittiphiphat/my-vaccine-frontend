@@ -7,13 +7,28 @@ import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 import 'dayjs/locale/th';
 import { useRouter } from 'next/navigation';
-import { Filter, X, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  FunnelIcon,
+  XMarkIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  ArrowPathIcon,
+} from '@heroicons/react/24/outline';
 import { io } from 'socket.io-client';
+import Swal from 'sweetalert2';
+import withReactContent from 'sweetalert2-react-content';
+import { motion } from 'framer-motion';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 dayjs.extend(isBetween);
 dayjs.extend(isSameOrAfter);
 dayjs.extend(isSameOrBefore);
 dayjs.locale('th');
+
+const MySwal = withReactContent(Swal);
 
 const dayMapShort = {
   0: 'อาทิตย์',
@@ -25,20 +40,13 @@ const dayMapShort = {
   6: 'เสาร์',
 };
 
-function Spinner() {
-  return (
-    <div className="flex justify-center items-center py-10">
-      <div className="w-12 h-12 border-4 border-[#30266D] border-t-transparent rounded-full animate-spin"></div>
-    </div>
-  );
-}
-
 export default function VaccineList() {
   const [patient, setPatient] = useState(null);
   const [vaccines, setVaccines] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);  
+  const [error, setError] = useState(null);
+  const [buttonLoading, setButtonLoading] = useState({});
 
   const [searchTerm, setSearchTerm] = useState('');
   const [ageMinFilter, setAgeMinFilter] = useState('');
@@ -59,9 +67,12 @@ export default function VaccineList() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      setError(null);  
+      setError(null);
 
-      const userRes = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/users/me`, { credentials: 'include' });
+      const userRes = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/users/me`, {
+        credentials: 'include',
+        cache: 'force-cache',
+      });
       const user = await userRes.json();
       const userId = user?.id || user?.data?.id;
 
@@ -72,31 +83,51 @@ export default function VaccineList() {
 
       const patientRes = await fetch(
         `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/patients?filters[user][id][$eq]=${userId}&populate=user`,
-        { credentials: 'include' }
+        { credentials: 'include', cache: 'force-cache' }
       );
       const pData = await patientRes.json();
 
-      if (!pData.data || pData.data.length === 0) {
-        setPatient(null);
-      } else {
-        const pat = pData.data[0];
-        const birthDate = pat.attributes.birth_date;
-        const age = birthDate ? dayjs().diff(dayjs(birthDate), 'year') : 0;
-        let gender = (pat.attributes.gender || 'any').toLowerCase();
-        if (!['male', 'female'].includes(gender)) gender = 'any';
-
-        setPatient({ id: pat.id, age, gender });
+      if (!pData?.data || pData.data.length === 0) {
+        router.push('/patient');
+        return;
       }
 
+      const pat = pData.data[0];
+
+      if (pat.attributes.status === 'cancelled') {
+        await MySwal.fire({
+          icon: 'error',
+          title: 'ข้อมูลถูกลบ',
+          text: 'ข้อมูลผู้ป่วยของคุณถูกลบ โปรดติดต่อเจ้าหน้าที่เพื่อดำเนินการต่อ',
+          confirmButtonText: 'ยืนยัน',
+          customClass: {
+            popup: 'bg-white/95 backdrop-blur-lg rounded-2xl shadow-xl border-[#F9669D]/50 p-6',
+            title: 'text-lg font-bold text-[#30266D] mb-3',
+            htmlContainer: 'text-sm text-[#4B5563] font-medium mb-4',
+            confirmButton: 'bg-[#30266D] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#30266D]/80',
+          },
+        });
+        setLoading(false);
+        return;
+      }
+
+      const birthDate = pat.attributes.birth_date;
+      const age = birthDate ? dayjs().diff(dayjs(birthDate), 'year') : 0;
+      let gender = (pat.attributes.gender || 'any').toLowerCase();
+      if (!['male', 'female'].includes(gender)) gender = 'any';
+
+      setPatient({ id: pat.id, age, gender });
+
       const vacRes = await fetch(
-        `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccines?populate[booking_settings]=name,max_quota&populate[vaccine_service_days]=day&populate[vaccine_time_slots]=time`,
-        { credentials: 'include' }
+        `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccines?populate[booking_settings]=name,max_quota&populate[vaccine_service_days]=day&populate[vaccine_time_slots]=time&pagination[pageSize]=50`,
+        { credentials: 'include', cache: 'force-cache' }
       );
       const vacJson = await vacRes.json();
 
       const vacs = vacJson.data.map((v) => {
         const a = v.attributes;
         let serviceDays = [];
+
         if (Array.isArray(a.vaccine_service_days?.data)) {
           a.vaccine_service_days.data.forEach((dayObj) => {
             const days = [].concat(dayObj.attributes?.day_of_week || []);
@@ -106,10 +137,12 @@ export default function VaccineList() {
         }
 
         const formatTime = (t) => (typeof t === 'string' && t.length >= 5 ? t.slice(0, 5) : '-');
+
         let vaccineGender = (a.gender || 'any').toLowerCase();
         if (!['male', 'female'].includes(vaccineGender)) vaccineGender = 'any';
 
         const bs = a.booking_settings?.data?.[0]?.attributes ?? {};
+
         const timeSlots = a.vaccine_time_slots?.data?.map((slot) => ({
           startTime: slot.attributes.startTime,
           endTime: slot.attributes.endTime,
@@ -143,24 +176,38 @@ export default function VaccineList() {
 
       setVaccines(vacs);
     } catch (error) {
-      console.error('โหลดข้อมูลล้มเหลว:', error);
-      setError('เกิดข้อผิดพลาดในการโหลดข้อมูล กรุณาลองใหม่อีกครั้ง');
+      await MySwal.fire({
+        icon: 'error',
+        title: 'เกิดข้อผิดพลาด',
+        text: 'ไม่สามารถโหลดข้อมูลวัคซีนได้ กรุณาลองใหม่',
+        confirmButtonText: 'ยืนยัน',
+        customClass: {
+          popup: 'bg-white/95 backdrop-blur-lg rounded-2xl shadow-xl border-[#F9669D]/50 p-6',
+          title: 'text-lg font-bold text-[#30266D] mb-3',
+          htmlContainer: 'text-sm text-[#4B5563] font-medium mb-4',
+          confirmButton: 'bg-[#30266D] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#30266D]/80',
+        },
+      });
+      setError('เกิดข้อผิดพลาดในการโหลดข้อมูล กรุณาลองใหม่');
     } finally {
       setLoading(false);
     }
   }, [router]);
 
   useEffect(() => {
-    socketRef.current = io(process.env.NEXT_PUBLIC_SOCKET_IO_URL || 'http://localhost:4000', {
+    const socketUrl = typeof window !== 'undefined' ? 'http://localhost:4000' : 'http://strapi:4000';
+    socketRef.current = io(socketUrl, {
       transports: ['websocket'],
       autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
     });
 
-    socketRef.current.on('vaccineUpdated', () => {
-      loadData();
-    });
+    socketRef.current.on('vaccine_updated', loadData);
 
     return () => {
+      socketRef.current.off('vaccine_updated', loadData);
       socketRef.current.disconnect();
     };
   }, [loadData]);
@@ -199,6 +246,16 @@ export default function VaccineList() {
     return true;
   };
 
+  const handleBookVaccine = (vaccineId) => {
+    if (buttonLoading[vaccineId]) return;
+
+    setButtonLoading((prev) => ({ ...prev, [vaccineId]: true }));
+    setTimeout(() => {
+      router.push(`/vaccines/${vaccineId}`);
+      setButtonLoading((prev) => ({ ...prev, [vaccineId]: false }));
+    }, 300);
+  };
+
   const toggleSort = (field) => {
     if (sortBy === field) {
       setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
@@ -225,6 +282,15 @@ export default function VaccineList() {
   const paginatedData = (data) => {
     const start = (currentPage - 1) * itemsPerPage;
     return data.slice(start, start + itemsPerPage);
+  };
+
+  const resetFilters = () => {
+    setSearchTerm('');
+    setAgeMinFilter('');
+    setAgeMaxFilter('');
+    setSelectedWeekdays([]);
+    setGenderFilter('any');
+    setShowFilters(false);
   };
 
   useEffect(() => {
@@ -265,130 +331,234 @@ export default function VaccineList() {
   const paged = paginatedData(sorted);
   const totalPages = Math.ceil(sorted.length / itemsPerPage);
 
-  if (loading) return <Spinner />;
+  if (loading) {
+    return (
+      <motion.main
+        className="max-w-7xl mx-auto p-4 sm:p-6"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+      >
+        <div className="flex flex-col items-center justify-center h-screen">
+          <motion.div
+            className="w-12 h-12 border-4 rounded-full"
+            style={{ borderColor: '#F9669D/50', borderTopColor: '#30266D' }}
+            animate={{ rotate: 360 }}
+            transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+          ></motion.div>
+          <p className="mt-4 text-lg font-semibold" style={{ color: '#30266D' }}>
+            กำลังโหลดข้อมูล...
+          </p>
+        </div>
+      </motion.main>
+    );
+  }
 
   return (
-    <main className="max-w-7xl mx-auto p-6">
-      <h1 className="text-3xl font-bold text-[#30266D] mb-6 text-center sm:text-left">รายการวัคซีน</h1>
+    <motion.main
+      className="max-w-7xl mx-auto p-4 sm:p-6"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+    >
+      <h1 className="text-3xl font-bold mb-6 text-center sm:text-left" style={{ color: '#30266D' }}>
+        รายการวัคซีน
+      </h1>
 
-      <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
-        <input
-          type="text"
-          placeholder="ค้นหาวัคซีน..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="flex-1 min-w-[200px] p-3 border border-[#F9669D] rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#F9669D]"
-          aria-label="ค้นหาวัคซีน"
-        />
-
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className="px-5 py-2 bg-[#30266D] text-white rounded-md flex items-center gap-2 cursor-pointer transition-shadow shadow-md hover:shadow-lg focus:ring-4 focus:ring-[#30266D]/50"
-          aria-label={showFilters ? 'ซ่อนตัวกรอง' : 'แสดงตัวกรอง'}
-          type="button"
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
+        <motion.div
+          className="w-full sm:w-full"
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.3 }}
         >
-          {showFilters ? <X size={18} /> : <Filter size={18} />} {showFilters ? 'ซ่อนตัวกรอง' : 'แสดงตัวกรอง'}
-        </button>
+          <Input
+            type="text"
+            placeholder="ค้นหาวัคซีน..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full p-3 border rounded-xl shadow-sm focus:ring-2 focus:ring-[#F9669D] focus:border-[#F9669D]"
+            style={{ borderColor: '#F9669D/50', backgroundColor: 'rgba(255, 255, 255, 0.95)', color: '#1F2937' }}
+            aria-label="ค้นหาวัคซีน"
+          />
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <Button
+            onClick={() => setShowFilters(!showFilters)}
+            className="px-6 py-3 rounded-xl flex items-center gap-2 shadow-md transition-all hover:bg-[#30266D]/80"
+            style={{ backgroundColor: '#30266D', color: '#FFFFFF' }}
+            aria-label={showFilters ? 'ซ่อนตัวกรอง' : 'แสดงตัวกรอง'}
+          >
+            {showFilters ? <XMarkIcon className="h-5 w-5" /> : <FunnelIcon className="h-5 w-5" />}
+            {showFilters ? 'ซ่อนตัวกรอง' : 'แสดงตัวกรอง'}
+          </Button>
+        </motion.div>
       </div>
 
       {error && (
-        <div
+        <motion.div
           role="alert"
-          className="mb-6 rounded-md bg-red-100 border border-red-400 text-red-700 px-4 py-3"
+          className="mb-6 p-4 rounded-xl shadow-lg"
+          style={{ backgroundColor: '#FEE2E2', borderColor: '#DC2626/50', color: '#DC2626' }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
           aria-live="assertive"
         >
           {error}
-        </div>
+        </motion.div>
       )}
 
       {showFilters && (
-        <div className="bg-gray-50 p-6 rounded-md shadow mb-8 space-y-6">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <input
-              type="number"
-              placeholder="อายุต่ำสุด"
-              value={ageMinFilter}
-              onChange={(e) => setAgeMinFilter(e.target.value)}
-              className="w-full sm:w-1/2 p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#F9669D]"
-              aria-label="อายุต่ำสุด"
-              min={0}
-            />
-            <input
-              type="number"
-              placeholder="อายุสูงสุด"
-              value={ageMaxFilter}
-              onChange={(e) => setAgeMaxFilter(e.target.value)}
-              className="w-full sm:w-1/2 p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#F9669D]"
-              aria-label="อายุสูงสุด"
-              min={0}
-            />
-          </div>
-
-          <select
-            value={genderFilter}
-            onChange={(e) => setGenderFilter(e.target.value)}
-            className="w-full max-w-xs p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#F9669D]"
-            aria-label="กรองตามเพศ"
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <Card
+            className="p-6 rounded-xl shadow-lg mb-8"
+            style={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', borderColor: '#F9669D/50' }}
           >
-            <option value="any">ทุกเพศ</option>
-            <option value="male">ชาย</option>
-            <option value="female">หญิง</option>
-          </select>
-
-          <div className="flex flex-wrap gap-4">
-            {Object.entries(dayMapShort).map(([num, label]) => (
-              <label
-                key={num}
-                className="flex items-center gap-2 cursor-pointer select-none text-gray-700"
-                aria-checked={selectedWeekdays.includes(+num)}
-                role="checkbox"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === ' ' || e.key === 'Enter') {
-                    e.preventDefault();
-                    const val = +num;
-                    setSelectedWeekdays((prev) =>
-                      prev.includes(val) ? prev.filter((d) => d !== val) : [...prev, val]
-                    );
-                  }
-                }}
-              >
-                <input
-                  type="checkbox"
-                  value={num}
-                  checked={selectedWeekdays.includes(+num)}
-                  onChange={(e) => {
-                    const val = +e.target.value;
-                    setSelectedWeekdays((prev) =>
-                      e.target.checked ? [...prev, val] : prev.filter((d) => d !== val)
-                    );
-                  }}
-                  className="cursor-pointer"
-                  aria-label={`เลือกวัน${label}`}
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <CardTitle className="text-xl font-semibold" style={{ color: '#30266D' }}>
+                  ตัวกรองการค้นหา
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  onClick={resetFilters}
+                  className="text-sm font-semibold"
+                  style={{ color: '#F9669D' }}
+                  aria-label="รีเซ็ตตัวกรอง"
+                >
+                  <ArrowPathIcon className="h-5 w-5 mr-2" />
+                  รีเซ็ต
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-semibold mb-2" style={{ color: '#1F2937' }}>
+                  อายุต่ำสุด
+                </label>
+                <Input
+                  type="number"
+                  placeholder="อายุต่ำสุด"
+                  value={ageMinFilter}
+                  onChange={(e) => setAgeMinFilter(e.target.value)}
+                  className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-[#F9669D] focus:border-[#F9669D]"
+                  style={{ borderColor: '#F9669D/50', backgroundColor: 'rgba(255, 255, 255, 0.95)', color: '#1F2937' }}
+                  aria-label="อายุต่ำสุด"
+                  min={0}
                 />
-                {label}
-              </label>
-            ))}
-          </div>
-        </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-2" style={{ color: '#1F2937' }}>
+                  อายุสูงสุด
+                </label>
+                <Input
+                  type="number"
+                  placeholder="อายุสูงสุด"
+                  value={ageMaxFilter}
+                  onChange={(e) => setAgeMaxFilter(e.target.value)}
+                  className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-[#F9669D] focus:border-[#F9669D]"
+                  style={{ borderColor: '#F9669D/50', backgroundColor: 'rgba(255, 255, 255, 0.95)', color: '#1F2937' }}
+                  aria-label="อายุสูงสุด"
+                  min={0}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-2" style={{ color: '#1F2937' }}>
+                  เพศ
+                </label>
+                <Select value={genderFilter} onValueChange={setGenderFilter}>
+                  <SelectTrigger
+                    className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-[#F9669D]"
+                    style={{ borderColor: '#F9669D/50', backgroundColor: 'rgba(255, 255, 255, 0.95)', color: '#1F2937' }}
+                  >
+                    <SelectValue placeholder="เลือกเพศ" />
+                  </SelectTrigger>
+                  <SelectContent style={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', borderColor: '#F9669D/50' }}>
+                    <SelectItem value="any">ทุกเพศ</SelectItem>
+                    <SelectItem value="male">ชาย</SelectItem>
+                    <SelectItem value="female">หญิง</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="lg:col-span-3">
+                <label className="block text-sm font-semibold mb-2" style={{ color: '#1F2937' }}>
+                  วันให้บริการ
+                </label>
+                <div className="flex flex-wrap gap-4">
+                  {Object.entries(dayMapShort).map(([num, label]) => (
+                    <label
+                      key={num}
+                      className="flex items-center gap-2 select-none text-[#1F2937] cursor-pointer"
+                      aria-checked={selectedWeekdays.includes(+num)}
+                      role="checkbox"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === ' ' || e.key === 'Enter') {
+                          e.preventDefault();
+                          const val = +num;
+                          setSelectedWeekdays((prev) =>
+                            prev.includes(val) ? prev.filter((d) => d !== val) : [...prev, val]
+                          );
+                        }
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        value={num}
+                        checked={selectedWeekdays.includes(+num)}
+                        onChange={(e) => {
+                          const val = +e.target.value;
+                          setSelectedWeekdays((prev) =>
+                            e.target.checked ? [...prev, val] : prev.filter((d) => d !== val)
+                          );
+                        }}
+                        className="h-4 w-4"
+                        style={{ accentColor: '#F9669D' }}
+                        aria-label={`เลือกวัน${label}`}
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
       )}
 
-      <div className="flex justify-between items-center text-sm text-gray-600 mb-6">
+      <div className="flex flex-col sm:flex-row justify-between items-center text-sm mb-6" style={{ color: '#4B5563' }}>
         <p>พบทั้งหมด {availableVaccines.length} รายการ</p>
-        <button
+        <Button
+          variant="ghost"
           onClick={() => toggleSort('name')}
-          className="flex items-center gap-1 cursor-pointer transition-colors hover:text-[#30266D]"
+          className="flex items-center gap-1 transition-colors hover:text-[#30266D]"
           aria-label={`เรียงตามชื่อ ${sortOrder === 'asc' ? 'จากน้อยไปมาก' : 'จากมากไปน้อย'}`}
-          type="button"
         >
-          เรียงตามชื่อ {sortOrder === 'asc' ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-        </button>
+          เรียงตามชื่อ {sortOrder === 'asc' ? <ChevronDownIcon className="h-4 w-4" /> : <ChevronUpIcon className="h-4 w-4" />}
+        </Button>
       </div>
 
       {availableVaccines.length === 0 ? (
-        <p className="text-center text-gray-500">ไม่พบวัคซีนที่ตรงกับเงื่อนไข</p>
+        <motion.p
+          className="text-center text-lg"
+          style={{ color: '#4B5563' }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5 }}
+        >
+          ไม่พบวัคซีนที่ตรงกับเงื่อนไข
+        </motion.p>
       ) : (
-        <div className="grid gap-8 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {paged.map((v) => {
             const remaining = Math.max(v.max_quota - v.booked, 0);
             const serviceDaysText = v.serviceDays.length
@@ -398,73 +568,97 @@ export default function VaccineList() {
                   .join(', ')
               : 'ไม่ระบุวันให้บริการ';
             return (
-              <div
+              <motion.div
                 key={v.id}
-                className="border-l-4 border-[#30266D] bg-white p-6 shadow-lg rounded-lg flex flex-col min-h-[320px] hover:shadow-xl transition-shadow duration-300"
+                className="border-l-4 p-6 rounded-xl shadow-lg flex flex-col min-h-[320px] hover:shadow-xl transition-all duration-300"
+                style={{ borderColor: '#30266D', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
               >
-                <h2 className="text-2xl font-extrabold text-[#30266D] mb-3 line-clamp-1">{v.name}</h2>
-
-                <p className="text-gray-700 text-base mb-5 line-clamp-4 flex-grow">{v.description}</p>
-
-                <div className="text-sm text-gray-600 space-y-2 mb-6 leading-relaxed">
+                <h2 className="text-xl font-bold mb-3 line-clamp-1" style={{ color: '#30266D' }}>
+                  {v.name}
+                </h2>
+                <p className="text-base mb-5 line-clamp-4 flex-grow" style={{ color: '#4B5563' }}>
+                  {v.description}
+                </p>
+                <div className="text-sm space-y-2 mb-6 leading-relaxed" style={{ color: '#4B5563' }}>
                   <p>
-                    <span className="font-semibold text-[#30266D]">เปิดจอง:</span>{' '}
+                    <span className="font-semibold" style={{ color: '#30266D' }}>เปิดจอง:</span>{' '}
                     {v.bookingStart.format('D MMM')} {v.bookingStart.year() + 543} –{' '}
                     {v.bookingEnd.format('D MMM')} {v.bookingEnd.year() + 543}
                   </p>
                   <p>
-                    <span className="font-semibold text-[#30266D]">วันให้บริการ:</span>{' '}
+                    <span className="font-semibold" style={{ color: '#30266D' }}>วันให้บริการ:</span>{' '}
                     {serviceDaysText}
                   </p>
                   <p>
-                    <span className="font-semibold text-[#F9669D]">
+                    <span className="font-semibold" style={{ color: '#F9669D' }}>
                       จำนวนที่จองแล้ว: {v.booked} /{' '}
                       {v.max_quota === Infinity ? 'ไม่จำกัด' : v.max_quota} (เหลือ {remaining})
                     </span>
                   </p>
                   <p>
-                    <span className="font-semibold text-[#30266D]">เพศที่รับได้:</span>{' '}
+                    <span className="font-semibold" style={{ color: '#30266D' }}>เพศที่จองได้:</span>{' '}
                     {v.gender === 'male' ? 'ชาย' : v.gender === 'female' ? 'หญิง' : 'ทุกเพศ'}
                   </p>
                   <p>
-                    <span className="font-semibold text-[#30266D]">ช่วงอายุที่รับได้:</span> {v.min_age} – {v.max_age}{' '}
+                    <span className="font-semibold" style={{ color: '#30266D' }}>ช่วงอายุที่จองได้:</span> {v.min_age} – {v.max_age}{' '}
                     ปี
                   </p>
                 </div>
-
-                <button
-                  onClick={() => router.push(`/vaccines/${v.id}`)}
-                  className="mt-auto bg-[#F9669D] text-white font-semibold rounded-md py-3 shadow-md cursor-pointer transition-colors hover:bg-pink-600 focus:ring-4 focus:ring-[#F9669D]/50"
-                  type="button"
+                <Button
+                  onClick={() => handleBookVaccine(v.id)}
+                  className={`mt-auto py-3 rounded-xl shadow-md transition-all ${
+                    buttonLoading[v.id] ? 'opacity-50' : 'hover:bg-[#F9669D]/80'
+                  }`}
+                  style={{ backgroundColor: '#F9669D', color: '#FFFFFF' }}
+                  disabled={buttonLoading[v.id]}
+                  aria-label="จองวัคซีน"
                 >
-                  จองวัคซีน
-                </button>
-              </div>
+                  {buttonLoading[v.id] ? (
+                    <div className="flex items-center justify-center">
+                      <motion.div
+                        className="w-5 h-5 border-2 border-white border-t-transparent rounded-full mr-2"
+                        animate={{ rotate: 360 }}
+                        transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                      ></motion.div>
+                      กำลังโหลด...
+                    </div>
+                  ) : (
+                    'จองวัคซีน'
+                  )}
+                </Button>
+              </motion.div>
             );
           })}
         </div>
       )}
 
       {totalPages > 1 && (
-        <div className="flex justify-center mt-10 gap-3">
+        <motion.div
+          className="flex justify-center mt-10 gap-2 flex-wrap"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
           {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-            <button
+            <Button
               key={page}
               onClick={() => setCurrentPage(page)}
-              className={`px-4 py-2 rounded-md font-semibold transition-colors ${
+              className={`px-4 py-2 rounded-xl font-semibold transition-all ${
                 currentPage === page
                   ? 'bg-[#30266D] text-white shadow-lg'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  : 'bg-[#FFFFFF]/95 text-[#1F2937] hover:bg-[#F9669D]/80 hover:text-white'
               }`}
               aria-current={currentPage === page ? 'page' : undefined}
               aria-label={`หน้า ${page}`}
-              type="button"
             >
               {page}
-            </button>
+            </Button>
           ))}
-        </div>
+        </motion.div>
       )}
-    </main>
+    </motion.main>
   );
 }

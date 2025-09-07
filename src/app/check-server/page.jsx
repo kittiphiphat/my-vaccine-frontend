@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-
+import Swal from "sweetalert2";
 
 export default function CheckServerPage() {
   const router = useRouter();
@@ -111,7 +111,13 @@ export default function CheckServerPage() {
             router.replace("/login");
           }
         } catch (err) {
-          console.error("Error checking user:", err);
+          Swal.fire({
+            icon: "error",
+            title: "เกิดข้อผิดพลาด",
+            text: "ไม่สามารถตรวจสอบผู้ใช้ได้ กรุณาลองอีกครั้ง",
+            confirmButtonText: "ตกลง",
+            confirmButtonColor: "#30266D",
+          });
           router.replace("/login");
         }
       })();
@@ -125,7 +131,7 @@ export default function CheckServerPage() {
     .padStart(2, "0")}`;
 
   return (
-    <div className="flex items-center justify-center min-h-screen px-6  select-none">
+    <div className="flex items-center justify-center min-h-screen px-6 select-none">
       <div className="relative max-w-md w-full bg-white rounded-3xl shadow-2xl p-10 text-center ring-4 ring-[#30266D]">
         <div className="mb-6">
           <Image
@@ -142,7 +148,7 @@ export default function CheckServerPage() {
             <p className="text-gray-600 mb-4 text-sm">
               กรุณารอสักครู่ หากรอเกิน 5 นาที กรุณาแจ้งเจ้าหน้าที่
             </p>
-            <div className="inline-block px-4 py-2 rounded-full bg-[#30266D] bg-opacity-90 text-white  text-lg tracking-wider shadow">
+            <div className="inline-block px-4 py-2 rounded-full bg-[#30266D] bg-opacity-90 text-white text-lg tracking-wider shadow">
               เวลาที่รอ: {formattedTime}
             </div>
           </>

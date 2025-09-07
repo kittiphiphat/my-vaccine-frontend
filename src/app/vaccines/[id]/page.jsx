@@ -6,7 +6,7 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/th';
 import advancedFormat from 'dayjs/plugin/advancedFormat';
 import { CalendarDays, Users, Info } from 'lucide-react';
-import { VaccineBookingDialog } from '@/app/booking/page';
+import { VaccineBooking } from '@/app/booking/page';
 
 
 dayjs.locale('th');
@@ -125,7 +125,7 @@ export default function VaccineDetailPage() {
       </div>
 
       <div className="pt-6 text-center no-print">
-        <VaccineBookingDialog vaccine={vaccine} />
+        <VaccineBooking vaccine={vaccine} />
       </div>
     </div>
   );

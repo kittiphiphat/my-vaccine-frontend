@@ -6,7 +6,7 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/th';
 import { Printer, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { User, Phone, Calendar, Clock, Syringe, MapPin, FileText } from 'lucide-react';
+import { User, Calendar, Clock, Syringe, MapPin, FileText } from 'lucide-react';
 
 dayjs.locale('th');
 
@@ -51,7 +51,6 @@ export default function AppointmentDetailPage() {
     const printContent = document.getElementById('printArea');
     const printWindow = window.open('', '', 'width=1024,height=720');
 
-    // ดึง style และ link stylesheet จากหน้าเว็บปัจจุบัน
     const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
       .map((node) => node.outerHTML)
       .join('\n');
@@ -115,8 +114,7 @@ export default function AppointmentDetailPage() {
   }
 
   const hospitelData = hospitel?.data?.[0]?.attributes || {};
-  const logoUrl =
-    hospitelData.logo?.data?.attributes?.url ?? '/medcmu2.png';
+  const logoUrl = hospitelData.logo?.data?.attributes?.url ?? '/medcmu2.png';
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 font-sarabun">
@@ -133,26 +131,19 @@ export default function AppointmentDetailPage() {
             />
           </div>
           <div className="text-right">
-            <p className="text-sm text-gray-300">เลขที่นัด</p>
-            <p className="font-mono font-bold text-lg text-[#F9669D]">#A-{appointment.id}</p>
+            <p className="text-sm text-gray-300">เลขที่ใบนัด</p>
+            <p className="font-mono font-bold text-lg text-[#F9669D]">#CMU-{appointment.id}</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-base mt-6">
-          {/* ฝั่งซ้าย */}
-          <div className="space-y-3">
+        <div className="space-y-4 mt-6">
+          <div className="grid grid-cols-1 gap-3">
             <div className="flex items-center gap-2">
               <User className="w-5 h-5 text-[#F9669D]" />
               <span className="font-semibold">ชื่อ:</span>
               <span>
                 {appointment.attributes.patient.data.attributes.first_name} {appointment.attributes.patient.data.attributes.last_name}
               </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Phone className="w-5 h-5 text-[#F9669D]" />
-              <span className="font-semibold">โทร:</span>
-              <span>{appointment.attributes.patient.data.attributes.phone}</span>
             </div>
 
             <div className="flex items-center gap-2">
@@ -171,9 +162,7 @@ export default function AppointmentDetailPage() {
                 {formatTime(appointment.attributes.startTime)} - {formatTime(appointment.attributes.endTime)} น.
               </span>
             </div>
-          </div>
 
-          <div className="space-y-3">
             <div className="flex items-center gap-2">
               <Syringe className="w-5 h-5 text-[#F9669D]" />
               <span className="font-semibold">วัคซีน:</span>
@@ -216,12 +205,11 @@ export default function AppointmentDetailPage() {
               </span>
             </div>
           </div>
-        </div>
 
-        <div className="text-xs text-center text-gray-300 mt-6 leading-snug border-t pt-4">
-          <p>{hospitelData.warningtext || 'กรุณามาถึงก่อนเวลานัดอย่างน้อย 10 นาที และนำบัตรประชาชนมาแสดงทุกครั้ง'}</p>
-          <p>{hospitelData.subwarningtext || 'หากไม่สามารถมาตามนัด กรุณาโทรแจ้งล่วงหน้า'}</p>
-          <p className="mt-1 font-semibold text-[#F9669D]">📞 ติดต่อ: {hospitelData.phone || '0-5393-6150'}</p>
+          <div className="text-xs text-center text-gray-300 mt-6 leading-snug border-t pt-4">
+            <p>{hospitelData.warningtext || 'กรุณามาถึงก่อนเวลานัดอย่างน้อย 10 นาที และนำบัตรประชาชนมาแสดงทุกครั้ง'}</p>
+            <p>{hospitelData.subwarningtext || 'หากไม่สามารถมาตามนัด กรุณาโทรแจ้งล่วงหน้า'}</p>
+          </div>
         </div>
       </div>
 

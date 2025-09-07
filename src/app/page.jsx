@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Swal from "sweetalert2";
+import withReactContent from "sweetalert2-react-content";
+
+const MySwal = withReactContent(Swal);
 
 export default function Home() {
   const router = useRouter();
@@ -16,10 +20,10 @@ export default function Home() {
           });
 
           if (res.status !== 500) {
-            return true; 
+            return true;
           }
         } catch (err) {
-          
+          // No console.error here as it's a retry loop; silently retry
         }
 
         await new Promise((res) => setTimeout(res, 1000));
@@ -72,7 +76,22 @@ export default function Home() {
           router.replace("/welcome");
         }
       } catch (err) {
-        console.error("⛔️ Error fetch user:", err);
+        // Replace console.error with SweetAlert2
+        await MySwal.fire({
+          icon: "error",
+          title: "เกิดข้อผิดพลาด",
+          text: "ไม่สามารถตรวจสอบข้อมูลผู้ใช้ได้ กรุณาลองใหม่",
+          confirmButtonColor: "#DC2626",
+          customClass: {
+            popup: "rounded-lg shadow-md border border-[#D1D5DB]/50",
+            title: "text-base sm:text-lg font-semibold text-[#1F2937]",
+            htmlContainer: "text-sm sm:text-base text-[#4B5563]",
+            confirmButton: "bg-[#DC2626] text-white px-5 py-3 rounded-lg font-medium hover:bg-[#DC2626]/90 transition-all duration-300 shadow-sm text-sm sm:text-base",
+          },
+          background: "#FFFFFF",
+          color: "#1F2937",
+        });
+
         const cachedRole = sessionStorage.getItem("userRole");
         if (cachedRole === "admin") {
           router.replace("/admin/dashboard");

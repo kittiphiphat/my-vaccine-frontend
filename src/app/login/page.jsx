@@ -38,12 +38,11 @@ export default function LoginPage() {
 
       const data = await res.json();
 
-      if (!res.ok) {
-        const errorMessage =
-          data.error?.message === "Invalid identifier or password"
+     if (!res.ok) {
+      const errorMessage =
+          res.status === 401
             ? "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"
-            : data.error?.message || data.message || "เข้าสู่ระบบไม่สำเร็จ";
-
+            : "เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
         throw new Error(errorMessage);
       }
 

@@ -1,14 +1,64 @@
 'use client';
+
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
+import dayjs from 'dayjs';
+import 'dayjs/locale/th';
+import buddhistEra from 'dayjs/plugin/buddhistEra';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import VaccineTimeSlotForm from './formedit/VaccineTimeSlotform';
 import VaccineTimeSlotFormCreate from './formcreate/VaccineTimeSlotformCreate';
-import { Input } from '@/components/ui/input'; 
+
+dayjs.locale('th');
+dayjs.extend(buddhistEra);
+dayjs.extend(utc);
+dayjs.extend(timezone);
+dayjs.tz.setDefault('Asia/Bangkok');
 
 const MySwal = withReactContent(Swal);
 
-export default function VaccineTimeSlotSection() {
+function timeToMinutes(time) {
+  if (!time || !/^\d{2}:\d{2}(?::\d{2})?$/.test(time)) return 0;
+  const [hours, minutes] = time.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+function isTimeOverlap(startTime, endTime, allSlots, currentId) {
+  if (!startTime || !endTime || !/^\d{2}:\d{2}(?::\d{2})?$/.test(startTime) || !/^\d{2}:\d{2}(?::\d{2})?$/.test(endTime)) {
+    return { isOverlap: false, conflicts: [] };
+  }
+  const startMinutes = timeToMinutes(startTime.slice(0, 5));
+  const endMinutes = timeToMinutes(endTime.slice(0, 5));
+  const conflicts = [];
+
+  allSlots.forEach((slot) => {
+    if (slot.id === currentId) return;
+    const slotStart = timeToMinutes(slot.attributes.startTime?.slice(0, 5) || '00:00');
+    const slotEnd = timeToMinutes(slot.attributes.endTime?.slice(0, 5) || '00:00');
+    if (
+      (startMinutes < slotEnd && endMinutes > slotStart) &&
+      !(startMinutes === slotEnd || endMinutes === slotStart)
+    ) {
+      conflicts.push({
+        startTime: slot.attributes.startTime?.slice(0, 5) || '-',
+        endTime: slot.attributes.endTime?.slice(0, 5) || '-',
+      });
+    }
+  });
+
+  return { isOverlap: conflicts.length > 0, conflicts };
+}
+
+export default function VaccineTimeSlotSection({ setParentData }) {
+  const router = useRouter();
   const [timeSlots, setTimeSlots] = useState([]);
   const [editingSlot, setEditingSlot] = useState(null);
   const [creatingSlot, setCreatingSlot] = useState(false);
@@ -22,17 +72,48 @@ export default function VaccineTimeSlotSection() {
   async function fetchTimeSlots() {
     setLoading(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccine-time-slots?populate=vaccine`, {
-        credentials: 'include',
-      });
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccine-time-slots?populate[vaccine][fields][0]=title&populate[vaccine][fields][1]=serviceStartTime&populate[vaccine][fields][2]=serviceEndTime`,
+        {
+          method: 'GET',
+          credentials: 'include',
+        }
+      );
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        const message = errorData?.error?.message || res.statusText || 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ';
+        if (res.status === 401) throw new Error('Unauthorized');
+        throw new Error(message);
+      }
       const data = await res.json();
       setTimeSlots(data.data || []);
     } catch (error) {
-      console.error('Error fetching time slots:', error);
+      MySwal.fire({
+        title: 'เกิดข้อผิดพลาด',
+        text: error.message === 'Unauthorized' ? 'กรุณาเข้าสู่ระบบใหม่' : `ไม่สามารถโหลดข้อมูลช่วงเวลาให้บริการได้: ${error.message}`,
+        icon: 'error',
+        customClass: {
+          popup: 'bg-white rounded-2xl shadow-lg border border-[#30266D] p-6',
+          title: 'text-xl font-bold text-[#30266D] mb-3',
+          htmlContainer: 'text-base text-[#30266D] font-medium mb-4',
+          confirmButton: 'bg-[#F9669D] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#F9669D]/80 transition-all duration-300 transform hover:scale-105',
+        },
+      });
+      if (error.message === 'Unauthorized') {
+        localStorage.removeItem('jwt');
+        localStorage.removeItem('user');
+        router.push('/login');
+      }
     } finally {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    if (setParentData) {
+      setParentData({ filteredSlots, searchTerm });
+    }
+  }, [timeSlots, searchTerm]);
 
   async function handleDelete(id) {
     const result = await MySwal.fire({
@@ -42,20 +123,58 @@ export default function VaccineTimeSlotSection() {
       showCancelButton: true,
       confirmButtonText: 'ใช่, ลบเลย',
       cancelButtonText: 'ยกเลิก',
+      customClass: {
+        popup: 'bg-white rounded-2xl shadow-lg border border-[#30266D] p-6',
+        title: 'text-xl font-bold text-[#30266D] mb-3',
+        htmlContainer: 'text-base text-[#30266D] font-medium mb-4',
+        confirmButton: 'bg-[#F9669D] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#F9669D]/80 transition-all duration-300 transform hover:scale-105',
+        cancelButton: 'bg-gray-300 text-[#30266D] px-4 py-2 rounded-xl font-semibold hover:bg-gray-400 transition-all duration-300 transform hover:scale-105',
+      },
     });
 
     if (!result.isConfirmed) return;
 
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccine-time-slots/${id}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccine-time-slots/${id}`, {
         method: 'DELETE',
         credentials: 'include',
       });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        const message = errorData?.error?.message || res.statusText || 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ';
+        if (res.status === 401) throw new Error('Unauthorized');
+        throw new Error(message);
+      }
       fetchTimeSlots();
-      MySwal.fire('ลบแล้ว!', 'ช่วงเวลาถูกลบเรียบร้อยแล้ว', 'success');
+      MySwal.fire({
+        title: 'ลบสำเร็จ',
+        text: 'ช่วงเวลาถูกลบเรียบร้อยแล้ว',
+        icon: 'success',
+        timer: 1500,
+        showConfirmButton: false,
+        customClass: {
+          popup: 'bg-white rounded-2xl shadow-lg border border-[#30266D] p-6',
+          title: 'text-xl font-bold text-[#30266D] mb-3',
+          htmlContainer: 'text-base text-[#30266D] font-medium mb-4',
+        },
+      });
     } catch (error) {
-      console.error('Error deleting slot:', error);
-      MySwal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถลบช่วงเวลาได้', 'error');
+      MySwal.fire({
+        title: 'เกิดข้อผิดพลาด',
+        text: error.message === 'Unauthorized' ? 'กรุณาเข้าสู่ระบบใหม่' : `ไม่สามารถลบช่วงเวลาได้: ${error.message}`,
+        icon: 'error',
+        customClass: {
+          popup: 'bg-white rounded-2xl shadow-lg border border-[#30266D] p-6',
+          title: 'text-xl font-bold text-[#30266D] mb-3',
+          htmlContainer: 'text-base text-[#30266D] font-medium mb-4',
+          confirmButton: 'bg-[#F9669D] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#F9669D]/80 transition-all duration-300 transform hover:scale-105',
+        },
+      });
+      if (error.message === 'Unauthorized') {
+        localStorage.removeItem('jwt');
+        localStorage.removeItem('user');
+        router.push('/login');
+      }
     }
   }
 
@@ -76,12 +195,66 @@ export default function VaccineTimeSlotSection() {
     return title.toLowerCase().includes(searchTerm.toLowerCase());
   });
 
+  const exportToExcel = (filteredData, searchTerm) => {
+    if (!filteredData || filteredData.length === 0) {
+      MySwal.fire({
+        title: 'ไม่มีข้อมูล',
+        text: 'ไม่มีข้อมูลช่วงเวลาให้บริการสำหรับส่งออก',
+        icon: 'warning',
+        customClass: {
+          popup: 'bg-white rounded-2xl shadow-lg border border-[#30266D] p-6',
+          title: 'text-xl font-bold text-[#30266D] mb-3',
+          htmlContainer: 'text-base text-[#30266D] font-medium mb-4',
+          confirmButton: 'bg-[#F9669D] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#F9669D]/80 transition-all duration-300 transform hover:scale-105',
+        },
+      });
+      return;
+    }
+    const excelData = filteredData.map(({ attributes }, index) => ({
+      ลำดับ: index + 1,
+      วัคซีน: attributes.vaccine?.data?.attributes?.title || '-',
+      เวลาเริ่ม: attributes.startTime?.slice(0, 5) || '-',
+      เวลาสิ้นสุด: attributes.endTime?.slice(0, 5) || '-',
+      จำนวนที่รับ: attributes.quota || '-',
+      สถานะ: attributes.is_enabled ? 'เปิดใช้งาน' : 'ปิด',
+    }));
+    const worksheetName = 'ช่วงเวลาให้บริการ';
+    const fileName = `ช่วงเวลาให้บริการ${searchTerm ? `-${searchTerm}` : ''}-${dayjs().tz('Asia/Bangkok').locale('th').format('D MMMM BBBB')}.xlsx`;
+
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    XLSX.utils.sheet_add_aoa(worksheet, [['ลำดับ', 'วัคซีน', 'เวลาเริ่ม', 'เวลาสิ้นสุด', 'จำนวนที่รับ', 'สถานะ']], { origin: 'A1' });
+    worksheet['!cols'] = [
+      { wch: 10 },
+      { wch: 30 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 15 },
+    ];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, worksheetName);
+
+    const excelBuffer = XLSX.write(workbook, {
+      bookType: 'xlsx',
+      type: 'array',
+    });
+
+    const blob = new Blob([excelBuffer], { type: 'application/octet-stream' });
+    saveAs(blob, fileName);
+  };
+
   if (editingSlot !== null) {
+    const vaccineId = editingSlot.vaccine?.data?.id;
+    const allSlotsForVaccine = timeSlots.filter(
+      (slot) => slot.attributes.vaccine?.data?.id === vaccineId
+    );
     return (
       <VaccineTimeSlotForm
         initialData={editingSlot}
         onCancel={handleCancelEdit}
         onSave={handleSaveEdit}
+        allSlots={allSlotsForVaccine}
+        isTimeOverlap={isTimeOverlap}
       />
     );
   }
@@ -96,91 +269,112 @@ export default function VaccineTimeSlotSection() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col md:flex-row justify-between md:items-center gap-3">
-        <h3 className="text-xl font-semibold text-[#30266D]">จัดการช่วงเวลาให้บริการ</h3>
+    <div className="space-y-6 max-w-5xl mx-auto p-6 sm:p-8">
+      <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+        <h3 className="text-xl font-semibold text-[#30266D]">
+          จัดการช่วงเวลาให้บริการ
+        </h3>
         <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
           <Input
             placeholder="ค้นหาชื่อวัคซีน..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full md:w-[250px]"
+            className="w-full md:w-64 rounded-xl border border-[#30266D]/50 bg-white text-[#30266D] focus:ring-2 focus:ring-[#F9669D]"
+            aria-label="ค้นหาชื่อวัคซีน"
           />
-          <button
-            onClick={() => setCreatingSlot(true)}
-            className="px-4 py-2 bg-[#30266D] hover:bg-[#221c59] text-white rounded-md cursor-pointer"
-          >
-            + สร้างช่วงเวลาใหม่
-          </button>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => setCreatingSlot(true)}
+              className="px-4 py-2 bg-[#F9669D] text-white rounded-xl font-semibold hover:bg-[#F9669D]/80 transition-all duration-300 transform hover:scale-105"
+              aria-label="สร้างช่วงเวลาใหม่"
+            >
+              + สร้างช่วงเวลาใหม่
+            </Button>
+            <Button
+              onClick={() => exportToExcel(filteredSlots, searchTerm)}
+              className="px-4 py-2 bg-[#F9669D] text-white rounded-xl font-semibold hover:bg-[#F9669D]/80 transition-all duration-300 transform hover:scale-105"
+              aria-label="ดาวน์โหลด Excel"
+            >
+              ดาวน์โหลด Excel
+            </Button>
+          </div>
         </div>
       </div>
-
-      <table className="w-full border border-gray-300 rounded-md overflow-hidden shadow-sm">
-        <thead className="bg-[#30266D] text-white select-none">
-          <tr>
-            <th className="py-3 px-4 text-left font-semibold">วัคซีน</th>
-            <th className="py-3 px-4 text-center font-semibold">เวลาเริ่ม</th>
-            <th className="py-3 px-4 text-center font-semibold">เวลาสิ้นสุด</th>
-            <th className="py-3 px-4 text-center font-semibold">จำนวนที่รับ</th>
-            <th className="py-3 px-4 text-center font-semibold">สถานะ</th>
-            <th className="py-3 px-4 text-center font-semibold">จัดการ</th>
-          </tr>
-        </thead>
-        <tbody>
-          {loading ? (
-            <tr>
-              <td colSpan={6} className="text-center text-gray-500 py-6">
-                กำลังโหลดข้อมูล...
-              </td>
-            </tr>
-          ) : filteredSlots.length > 0 ? (
-            filteredSlots.map(({ id, attributes }, index) => (
-              <tr
-                key={id}
-                className={`${
-                  index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                } hover:bg-gray-100 transition-colors`}
-              >
-                <td className="py-3 px-4 text-gray-700 font-medium">{attributes.vaccine?.data?.attributes?.title || '-'}</td>
-                <td className="py-3 px-4 text-center text-gray-700 ">{attributes.startTime.slice(0, 5)}</td>
-                <td className="py-3 px-4 text-center text-gray-700 ">{attributes.endTime.slice(0, 5)}</td>
-                <td className="py-3 px-4 text-center text-gray-700">{attributes.quota}</td>
-                <td className="py-3 px-4 text-center">
-                  {attributes.is_enabled ? (
-                    <span className="inline-block px-3 py-1 rounded-full bg-green-100 text-green-800 font-semibold select-none">
-                      เปิดใช้งาน
-                    </span>
-                  ) : (
-                    <span className="inline-block px-3 py-1 rounded-full bg-red-100 text-red-600 font-semibold select-none">
-                      ปิด
-                    </span>
-                  )}
-                </td>
-                <td className="py-3 px-4 text-center space-x-2">
-                  <button
-                    onClick={() => setEditingSlot({ id, ...attributes })}
-                    className="inline-block px-3 py-1 rounded-md bg-[#30266D] text-white font-semibold hover:bg-[#4b3b8a] transition cursor-pointer"
-                  >
-                    แก้ไข
-                  </button>
-                  <button
-                    onClick={() => handleDelete(id)}
-                    className="inline-block px-3 py-1 rounded-md bg-[#F9669D] text-white font-semibold hover:bg-[#e24d8a] transition cursor-pointer"
-                  >
-                    ลบ
-                  </button>
-                </td>
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-8">
+          <div className="w-10 h-10 border-4 border-[#30266D]/30 border-t-[#30266D] rounded-full animate-pulse"></div>
+          <p className="mt-2 text-base font-medium text-[#30266D]">
+            กำลังโหลดข้อมูล...
+          </p>
+        </div>
+      ) : filteredSlots.length === 0 ? (
+        <p className="text-center text-base font-medium py-6 text-[#30266D]">
+          ไม่พบช่วงเวลาให้บริการ
+        </p>
+      ) : (
+        <div className="relative overflow-x-auto rounded-xl shadow-lg">
+          <table className="w-full border-collapse border border-[#30266D]/50">
+            <thead className="bg-[#30266D] text-white">
+              <tr>
+                <th className="py-3 px-4 text-left font-semibold text-sm" scope="col">วัคซีน</th>
+                <th className="py-3 px-4 text-center font-semibold text-sm" scope="col">เวลาเริ่ม</th>
+                <th className="py-3 px-4 text-center font-semibold text-sm" scope="col">เวลาสิ้นสุด</th>
+                <th className="py-3 px-4 text-center font-semibold text-sm" scope="col">จำนวนที่รับ</th>
+                <th className="py-3 px-4 text-center font-semibold text-sm" scope="col">สถานะ</th>
+                <th className="py-3 px-4 text-center font-semibold text-sm" scope="col">จัดการ</th>
               </tr>
-            ))
-          ) : (
-            <tr>
-              <td colSpan={6} className="text-center text-gray-500 py-6 select-none">
-                ไม่พบช่วงเวลาให้บริการ
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+            </thead>
+            <tbody>
+              {filteredSlots.map(({ id, attributes }, index) => (
+                <tr
+                  key={id}
+                  className={cn(index % 2 === 0 ? 'bg-white' : 'bg-gray-50', 'border-b border-[#30266D]/20 hover:bg-[#F9669D]/10 transition-colors duration-200')}
+                >
+                  <td className="py-3 px-4 font-medium text-[#30266D]">
+                    {attributes.vaccine?.data?.attributes?.title || '-'}
+                  </td>
+                  <td className="py-3 px-4 text-center text-[#30266D]">
+                    {attributes.startTime?.slice(0, 5) || '-'}
+                  </td>
+                  <td className="py-3 px-4 text-center text-[#30266D]">
+                    {attributes.endTime?.slice(0, 5) || '-'}
+                  </td>
+                  <td className="py-3 px-4 text-center text-[#30266D]">
+                    {attributes.quota || '-'}
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    {attributes.is_enabled ? (
+                      <span className="inline-block px-3 py-1 rounded-xl bg-green-100 text-green-800 font-semibold select-none">
+                        เปิดใช้งาน
+                      </span>
+                    ) : (
+                      <span className="inline-block px-3 py-1 rounded-xl bg-red-100 text-red-600 font-semibold select-none">
+                        ปิด
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-3 px-4 text-center space-x-2">
+                    <Button
+                      onClick={() => setEditingSlot({ id, ...attributes })}
+                      className="px-3 py-1 bg-[#30266D] text-white rounded-xl font-semibold hover:bg-[#30266D]/80 transition-all duration-300 transform hover:scale-105"
+                      aria-label={`แก้ไขช่วงเวลา ${attributes.vaccine?.data?.attributes?.title || 'ไม่ระบุ'}`}
+                    >
+                      แก้ไข
+                    </Button>
+                    <Button
+                      onClick={() => handleDelete(id)}
+                      className="px-3 py-1 bg-[#F9669D] text-white rounded-xl font-semibold hover:bg-[#F9669D]/80 transition-all duration-300 transform hover:scale-105"
+                      aria-label={`ลบช่วงเวลา ${attributes.vaccine?.data?.attributes?.title || 'ไม่ระบุ'}`}
+                    >
+                      ลบ
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

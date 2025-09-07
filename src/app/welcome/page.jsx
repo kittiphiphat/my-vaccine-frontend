@@ -3,8 +3,21 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import Swal from "sweetalert2";
+import withReactContent from "sweetalert2-react-content";
 import { motion, AnimatePresence } from "framer-motion";
-import { SendHorizontal } from "lucide-react";
+import { PaperAirplaneIcon } from "@heroicons/react/24/solid";
+
+const MySwal = withReactContent(Swal);
+
+const buttonVariants = {
+  hover: { scale: 1.05, boxShadow: "0px 6px 24px rgba(0, 0, 0, 0.2)" },
+  tap: { scale: 0.95 },
+};
+
+const usernameVariants = {
+  hover: { scale: 1.05, transition: { duration: 0.2 } },
+};
 
 export default function WelcomeBack() {
   const router = useRouter();
@@ -15,42 +28,103 @@ export default function WelcomeBack() {
   const [isEntering, setIsEntering] = useState(false);
 
   useEffect(() => {
-    async function checkLogin() {
+    async function checkLoginAndPatient() {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/users/me?populate=role`, {
-          credentials: "include",
-        });
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/users/me?populate=role`,
+          {
+            method: "GET",
+            credentials: "include",
+          }
+        );
 
         if (!res.ok) {
-          router.push("/login");
-          return;
+          if (res.status === 401) {
+            throw new Error("Unauthorized");
+          }
+          throw new Error("เกิดข้อผิดพลาดขณะโหลดข้อมูลผู้ใช้");
         }
 
         const data = await res.json();
-        console.log("User data:", data);
+        const roleName = data.role?.name?.toLowerCase();
+
+        // Validate role
+        if (!["patient", "admin"].includes(roleName)) {
+          // Replace console.error with SweetAlert2
+          await MySwal.fire({
+            icon: "error",
+            title: "บทบาทไม่ถูกต้อง",
+            text: "บทบาทผู้ใช้ไม่ถูกต้อง กรุณาติดต่อผู้ดูแลระบบ",
+            confirmButtonColor: "#DC2626",
+            customClass: {
+              popup: "rounded-lg shadow-md border border-[#D1D5DB]/50",
+              title: "text-base sm:text-lg font-semibold text-[#1F2937]",
+              htmlContainer: "text-sm sm:text-base text-[#4B5563]",
+              confirmButton: "bg-[#DC2626] text-white px-5 py-3 rounded-lg font-medium hover:bg-[#DC2626]/90 transition-all duration-300 shadow-sm text-sm sm:text-base",
+            },
+            background: "#FFFFFF",
+            color: "#1F2937",
+          });
+          throw new Error("บทบาทผู้ใช้ไม่ถูกต้อง");
+        }
+
+        const patientRes = await fetch(
+          `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/patients?filters[user][id][$eq]=${data.id}`,
+          {
+            method: "GET",
+            credentials: "include",
+          }
+        );
+
+        if (!patientRes.ok) {
+          throw new Error("เกิดข้อผิดพลาดขณะโหลดข้อมูลผู้ป่วย");
+        }
+
+        const patientData = await patientRes.json();
+        const hasPatient = Array.isArray(patientData.data) && patientData.data.length > 0;
+
+        if (!hasPatient && roleName === "patient") {
+          router.replace("/patient");
+          return;
+        }
+
         setUser(data);
         setShowWelcome(true);
       } catch (e) {
-        console.error("Fetch error:", e);
-        router.push("/login");
+        // Replace console.error with SweetAlert2
+        await MySwal.fire({
+          icon: "error",
+          title: "เกิดข้อผิดพลาด",
+          text: e.message === "Unauthorized" ? "กรุณาเข้าสู่ระบบ" : e.message,
+          confirmButtonColor: "#DC2626",
+          customClass: {
+            popup: "rounded-lg shadow-md border border-[#D1D5DB]/50",
+            title: "text-base sm:text-lg font-semibold text-[#1F2937]",
+            htmlContainer: "text-sm sm:text-base text-[#4B5563]",
+            confirmButton: "bg-[#DC2626] text-white px-5 py-3 rounded-lg font-medium hover:bg-[#DC2626]/90 transition-all duration-300 shadow-sm text-sm sm:text-base",
+          },
+          background: "#FFFFFF",
+          color: "#1F2937",
+        }).then(() => {
+          router.push("/login");
+        });
       } finally {
         setLoading(false);
       }
     }
-    checkLogin();
+
+    checkLoginAndPatient();
   }, [router]);
 
   const getRoleName = () => {
-  if (!user?.role?.type) return null;
-  return user.role.type.toLowerCase();
-};;
+    return user?.role?.name?.toLowerCase() || null;
+  };
 
   const getUsername = () => {
-    return user?.username || "พร้อมใช้งานแล้ว 🎉";
+    return user?.username || "ผู้ใช้";
   };
 
   const handleEnter = () => {
-    console.log("Enter clicked, role:", getRoleName());
     setIsEntering(true);
     setSlideUp(true);
 
@@ -62,84 +136,131 @@ export default function WelcomeBack() {
     }, 800);
   };
 
-  if (loading) {
-    return (
-      <div className="w-full h-screen flex items-center justify-center bg-gradient-to-br from-[#30266D] to-[#F9669D]">
-        <svg
-          className="animate-spin h-12 w-12 text-white"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-        >
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-          ></circle>
-          <path
-            className="opacity-75"
-            fill="white"
-            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-          ></path>
-        </svg>
-      </div>
-    );
-  }
-
   return (
-    <motion.div
-      initial={{ y: 0 }}
-      animate={slideUp ? { y: "-100%" } : { y: 0 }}
-      transition={{ duration: 0.6, ease: "easeInOut" }}
-      className="w-full h-screen flex items-center justify-center px-4 bg-gradient-to-br from-[#F9669D]/10 to-[#30266D]/10"
+    <div
+      className="w-full h-screen flex items-center justify-center px-4 relative overflow-hidden"
+      style={{ backgroundColor: "#FFFFFF" }}
     >
+      <div
+        className="absolute inset-0"
+        style={{
+          background: "radial-gradient(circle at 50% 50%, #F9669D10 0%, transparent 50%)",
+          opacity: 0.5,
+        }}
+      />
+
       <AnimatePresence>
-        {showWelcome && (
+        {loading ? (
+          <motion.div
+            key="loading"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="flex flex-col items-center justify-center"
+          >
+            <div
+              className="border-2 border-[#1F2937]/30 border-t-[#30266D] rounded-full w-6 h-6 animate-spin"
+            ></div>
+            <p
+              className="mt-2 text-sm sm:text-base font-medium"
+              style={{ color: "#1F2937" }}
+            >
+              กำลังโหลด...
+            </p>
+          </motion.div>
+        ) : showWelcome ? (
           <motion.div
             key="welcome"
-            initial={{ opacity: 0, y: 100 }}
+            initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -100 }}
-            transition={{ duration: 0.6 }}
-            className="relative bg-white/80 backdrop-blur-lg border border-white/30 shadow-2xl rounded-3xl p-10 md:p-12 max-w-2xl w-full text-center"
+            exit={{ opacity: 0, y: -50 }}
+            transition={{ duration: 0.5 }}
+            className="relative bg-white/15 backdrop-blur-2xl border border-opacity-80 shadow-xl rounded-3xl p-6 md:p-8 max-w-md w-full text-center font-poppins"
+            style={{ borderColor: "#D1D5DB" }}
           >
-            <div className="mb-6 md:mb-8">
-              <Image
-                src="/medcmu2.png"
-                alt="โลโก้"
-                width={200}
-                height={200}
-                quality={100}
-                className="mx-auto"
-                priority
-              />
+            <div className="mb-4 md:mb-6">
+              <motion.div
+                animate={{
+                  y: [0, -10, 0],
+                  transition: {
+                    repeat: Infinity,
+                    duration: 1.2,
+                    ease: "easeInOut",
+                  },
+                }}
+              >
+                <Image
+                  src="/medcmu2.png"
+                  alt="โลโก้โรงพยาบาล"
+                  width={200}
+                  height={200}
+                  quality={100}
+                  className="mx-auto"
+                />
+              </motion.div>
             </div>
 
-            <h1 className="text-4xl md:text-5xl font-extrabold text-[#30266D] mb-4 md:mb-6 drop-shadow-md leading-tight">
-              สวัสดีอีกครั้ง! 🎉
-            </h1>
+            <motion.h1
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.5 }}
+              className="text-2xl md:text-3xl font-bold mb-3 md:mb-4 leading-tight"
+              style={{ color: "#1F2937" }}
+            >
+              ยินดีต้อนรับสู่ระบบจองวัคซีน
+            </motion.h1>
 
-            <p className="text-lg md:text-xl text-gray-700 mb-10">
-              ยินดีต้อนรับคุณ {getUsername()}
-            </p>
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4, duration: 0.5 }}
+              className="text-base md:text-lg mb-6 md:mb-8 font-medium"
+              style={{ color: "#30266D" }}
+            >
+              สวัสดีคุณ{" "}
+              <motion.span
+                variants={usernameVariants}
+                whileHover="hover"
+                className="font-medium"
+                style={{ color: "#F9669D" }}
+              >
+                {getUsername()}
+              </motion.span>{" "}
+              เริ่มจองวัคซีนเพื่อสุขภาพของคุณ
+            </motion.p>
 
             <motion.button
               onClick={handleEnter}
               disabled={isEntering}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="bg-gradient-to-r from-[#F9669D] to-[#30266D] text-white px-8 py-4 text-lg font-bold rounded-full 
-              flex items-center justify-center gap-3 shadow-lg transition-all disabled:opacity-50 cursor-pointer"
+              variants={buttonVariants}
+              whileHover="hover"
+              whileTap="tap"
+              className={`w-full text-white px-6 py-3 text-base md:text-lg font-semibold rounded-full flex items-center justify-center gap-2 shadow-lg transition-all ${
+                isEntering ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+              }`}
+              style={{
+                backgroundColor: isEntering ? "#F9669D/80" : "#F9669D",
+              }}
+              aria-label={isEntering ? "กำลังดำเนินการ" : "เริ่มจองวัคซีน"}
             >
-              <SendHorizontal className="w-6 h-6" />
-              เข้าสู่หน้าหลัก
+              {isEntering ? (
+                <span className="flex items-center justify-center gap-2">
+                  <div
+                    className="border-2 border-[#1F2937]/30 border-t-[#30266D] rounded-full w-4 h-4 animate-spin"
+                  ></div>
+                  กำลังดำเนินการ...
+                </span>
+              ) : (
+                <>
+                  เริ่มจองวัคซีน
+                  <PaperAirplaneIcon className="w-5 h-5" />
+                </>
+              )}
             </motion.button>
           </motion.div>
-        )}
+        ) : null}
       </AnimatePresence>
-    </motion.div>
+    </div>
   );
 }

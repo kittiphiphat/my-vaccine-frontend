@@ -1,0 +1,369 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import Select from 'react-select';
+import Swal from 'sweetalert2';
+import withReactContent from 'sweetalert2-react-content';
+
+const MySwal = withReactContent(Swal);
+
+export default function VaccineServiceDayFormCreate({ onSave, onCancel }) {
+  const [selectedDays, setSelectedDays] = useState([]);
+  const [selectedVaccine, setSelectedVaccine] = useState(null);
+  const [vaccines, setVaccines] = useState([]);
+  const [usedDays, setUsedDays] = useState(new Set());
+
+  const dayOptions = [
+    { value: 0, label: 'อาทิตย์' },
+    { value: 1, label: 'จันทร์' },
+    { value: 2, label: 'อังคาร' },
+    { value: 3, label: 'พุธ' },
+    { value: 4, label: 'พฤหัสบดี' },
+    { value: 5, label: 'ศุกร์' },
+    { value: 6, label: 'เสาร์' },
+  ];
+
+  const updatedDayOptions = dayOptions.map((day) => ({
+    ...day,
+    isDisabled: usedDays.has(day.value),
+  }));
+
+  useEffect(() => {
+    async function fetchVaccines() {
+      try {
+        const vaccineRes = await fetch(
+          `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccines?pagination[limit]=-1`,
+          { credentials: 'include' }
+        );
+        if (!vaccineRes.ok) throw new Error('ไม่สามารถโหลดข้อมูลวัคซีนได้');
+        const vaccineJson = await vaccineRes.json();
+        const allVaccines = vaccineJson.data || [];
+
+        const dayRes = await fetch(
+          `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccine-service-days?pagination[limit]=-1&populate=vaccine`,
+          { credentials: 'include' }
+        );
+        if (!dayRes.ok) throw new Error('ไม่สามารถโหลดข้อมูลวันให้บริการได้');
+        const dayJson = await dayRes.json();
+
+        const usedVaccineIds = new Set(
+          dayJson.data.map((d) => d.attributes.vaccine?.data?.id).filter(Boolean)
+        );
+
+        const available = allVaccines.filter((v) => !usedVaccineIds.has(v.id));
+
+        const options = available.map((v) => ({
+          value: v.id,
+          label: v.attributes?.title || `วัคซีน ID: ${v.id}`,
+        }));
+
+        setVaccines(options);
+      } catch (err) {
+        MySwal.fire({
+          title: 'ผิดพลาด',
+          text: `โหลดข้อมูลวัคซีนล้มเหลว: ${err.message}`,
+          icon: 'error',
+          customClass: {
+            popup: 'bg-white rounded-2xl shadow-lg border border-[#1C1447]/70 p-6',
+            title: 'text-xl font-bold text-[#1C1447] mb-3',
+            htmlContainer: 'text-base text-[#1C1447] font-medium mb-4',
+            confirmButton: 'bg-[#F9669D] text-white px-4 py-2 rounded-xl font-semibold text-base hover:bg-[#F9669D]/80 transition-all duration-300 transform hover:scale-105',
+          },
+        });
+      }
+    }
+
+    fetchVaccines();
+  }, []);
+
+  useEffect(() => {
+    async function fetchUsedDays() {
+      if (!selectedVaccine) return;
+
+      try {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccine-service-days?filters[vaccine][id][$eq]=${selectedVaccine.value}&pagination[limit]=-1`,
+          { credentials: 'include' }
+        );
+        if (!res.ok) throw new Error('ไม่สามารถโหลดข้อมูลวันซ้ำได้');
+        const json = await res.json();
+        const existing = json.data || [];
+
+        const used = new Set();
+        existing.forEach((item) => {
+          const days = item.attributes.day_of_week || [];
+          days.forEach((d) => used.add(d));
+        });
+
+        setUsedDays(used);
+        setSelectedDays((prev) => prev.filter((d) => !used.has(d.value)));
+      } catch (err) {
+        MySwal.fire({
+          title: 'ผิดพลาด',
+          text: `โหลดวันซ้ำล้มเหลว: ${err.message}`,
+          icon: 'error',
+          customClass: {
+            popup: 'bg-white rounded-2xl shadow-lg border border-[#1C1447]/70 p-6',
+            title: 'text-xl font-bold text-[#1C1447] mb-3',
+            htmlContainer: 'text-base text-[#1C1447] font-medium mb-4',
+            confirmButton: 'bg-[#F9669D] text-white px-4 py-2 rounded-xl font-semibold text-base hover:bg-[#F9669D]/80 transition-all duration-300 transform hover:scale-105',
+          },
+        });
+      }
+    }
+
+    fetchUsedDays();
+  }, [selectedVaccine]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!selectedDays.length) {
+      await MySwal.fire({
+        title: 'แจ้งเตือน',
+        text: 'กรุณาเลือกวันให้บริการ',
+        icon: 'warning',
+        customClass: {
+          popup: 'bg-white rounded-2xl shadow-lg border border-[#1C1447]/70 p-6',
+          title: 'text-xl font-bold text-[#1C1447] mb-3',
+          htmlContainer: 'text-base text-[#1C1447] font-medium mb-4',
+          confirmButton: 'bg-[#F9669D] text-white px-4 py-2 rounded-xl font-semibold text-base hover:bg-[#F9669D]/80 transition-all duration-300 transform hover:scale-105',
+        },
+      });
+      return;
+    }
+
+    if (!selectedVaccine) {
+      await MySwal.fire({
+        title: 'แจ้งเตือน',
+        text: 'กรุณาเลือกวัคซีน',
+        icon: 'warning',
+        customClass: {
+          popup: 'bg-white rounded-2xl shadow-lg border border-[#1C1447]/70 p-6',
+          title: 'text-xl font-bold text-[#1C1447] mb-3',
+          htmlContainer: 'text-base text-[#1C1447] font-medium mb-4',
+          confirmButton: 'bg-[#F9669D] text-white px-4 py-2 rounded-xl font-semibold text-base hover:bg-[#F9669D]/80 transition-all duration-300 transform hover:scale-105',
+        },
+      });
+      return;
+    }
+
+    const confirm = await MySwal.fire({
+      title: 'ยืนยันการสร้างวันให้บริการ?',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'ใช่, บันทึก',
+      cancelButtonText: 'ยกเลิก',
+      customClass: {
+        popup: 'bg-white rounded-2xl shadow-lg border border-[#1C1447]/70 p-6',
+        title: 'text-xl font-bold text-[#1C1447] mb-3',
+        htmlContainer: 'text-base text-[#1C1447] font-medium mb-4',
+        confirmButton: 'bg-[#F9669D] text-white px-4 py-2 rounded-xl font-semibold text-base hover:bg-[#F9669D]/80 transition-all duration-300 transform hover:scale-105',
+        cancelButton: 'bg-[#E5E7EB] text-[#1C1447] px-4 py-2 rounded-xl font-semibold text-base hover:bg-[#D1D5DB] transition-all duration-300 transform hover:scale-105',
+      },
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    try {
+      const payload = {
+        data: {
+          day_of_week: selectedDays.map((d) => d.value),
+          vaccine: selectedVaccine.value,
+        },
+      };
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccine-service-days`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const msg = await res.text();
+        throw new Error(msg || 'ไม่สามารถบันทึกวันให้บริการได้');
+      }
+
+      await MySwal.fire({
+        title: 'สำเร็จ',
+        text: 'เพิ่มวันให้บริการเรียบร้อยแล้ว',
+        icon: 'success',
+        customClass: {
+          popup: 'bg-white rounded-2xl shadow-lg border border-[#1C1447]/70 p-6',
+          title: 'text-xl font-bold text-[#1C1447] mb-3',
+          htmlContainer: 'text-base text-[#1C1447] font-medium mb-4',
+          confirmButton: 'bg-[#F9669D] text-white px-4 py-2 rounded-xl font-semibold text-base hover:bg-[#F9669D]/80 transition-all duration-300 transform hover:scale-105',
+        },
+      });
+      onSave();
+    } catch (err) {
+      await MySwal.fire({
+        title: 'เกิดข้อผิดพลาด',
+        text: `ไม่สามารถบันทึกวันให้บริการได้: ${err.message}`,
+        icon: 'error',
+        customClass: {
+          popup: 'bg-white rounded-2xl shadow-lg border border-[#1C1447]/70 p-6',
+          title: 'text-xl font-bold text-[#1C1447] mb-3',
+          htmlContainer: 'text-base text-[#1C1447] font-medium mb-4',
+          confirmButton: 'bg-[#F9669D] text-white px-4 py-2 rounded-xl font-semibold text-base hover:bg-[#F9669D]/80 transition-all duration-300 transform hover:scale-105',
+        },
+      });
+    }
+  };
+
+  return (
+    <div className="space-y-4 max-w-xl mx-auto">
+      <h2 className="text-xl font-semibold text-[#1C1447]">สร้างวันให้บริการใหม่</h2>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block mb-1 font-semibold text-[#1C1447]">เลือกวัคซีน</label>
+          <Select
+            options={vaccines}
+            value={selectedVaccine}
+            onChange={setSelectedVaccine}
+            placeholder="เลือกวัคซีน..."
+            classNamePrefix="react-select"
+            noOptionsMessage={() => 'ไม่พบวัคซีน'}
+            className="text-base"
+            styles={{
+              control: (base) => ({
+                ...base,
+                backgroundColor: 'white',
+                borderColor: '#1C1447/70',
+                boxShadow: 'none',
+                '&:hover': {
+                  borderColor: '#F9669D',
+                },
+              }),
+              menu: (base) => ({
+                ...base,
+                backgroundColor: 'white',
+                border: '1px solid #1C1447/70',
+                borderRadius: '0.75rem',
+              }),
+              option: (base, state) => ({
+                ...base,
+                backgroundColor: state.isDisabled ? '#E5E7EB' : state.isFocused ? '#F9669D' : 'white',
+                color: state.isDisabled ? '#4B3A7A' : state.isFocused ? 'white' : '#1C1447',
+                cursor: state.isDisabled ? 'not-allowed' : 'pointer',
+                opacity: state.isDisabled ? 0.5 : 1,
+                '&:active': {
+                  backgroundColor: '#F9669D',
+                  color: 'white',
+                },
+              }),
+              multiValue: (base) => ({
+                ...base,
+                backgroundColor: '#F9669D',
+                color: 'white',
+              }),
+              multiValueLabel: (base) => ({
+                ...base,
+                color: 'white',
+              }),
+              multiValueRemove: (base) => ({
+                ...base,
+                color: 'white',
+                ':hover': {
+                  backgroundColor: '#1C1447',
+                  color: 'white',
+                },
+                cursor: 'pointer',
+              }),
+              placeholder: (base) => ({
+                ...base,
+                color: '#4B3A7A',
+              }),
+              singleValue: (base) => ({
+                ...base,
+                color: '#1C1447',
+              }),
+            }}
+          />
+        </div>
+        <div>
+          <label className="block mb-1 font-semibold text-[#1C1447]">เลือกวันในสัปดาห์</label>
+          <Select
+            options={updatedDayOptions}
+            isMulti
+            value={selectedDays}
+            onChange={setSelectedDays}
+            placeholder="เลือกวัน..."
+            classNamePrefix="react-select"
+            className="text-base"
+            styles={{
+              control: (base) => ({
+                ...base,
+                backgroundColor: 'white',
+                borderColor: '#1C1447/70',
+                boxShadow: 'none',
+                '&:hover': {
+                  borderColor: '#F9669D',
+                },
+              }),
+              menu: (base) => ({
+                ...base,
+                backgroundColor: 'white',
+                border: '1px solid #1C1447/70',
+                borderRadius: '0.75rem',
+              }),
+              option: (base, state) => ({
+                ...base,
+                backgroundColor: state.isDisabled ? '#E5E7EB' : state.isFocused ? '#F9669D' : 'white',
+                color: state.isDisabled ? '#4B3A7A' : state.isFocused ? 'white' : '#1C1447',
+                cursor: state.isDisabled ? 'not-allowed' : 'pointer',
+                opacity: state.isDisabled ? 0.5 : 1,
+                '&:active': {
+                  backgroundColor: '#F9669D',
+                  color: 'white',
+                },
+              }),
+              multiValue: (base) => ({
+                ...base,
+                backgroundColor: '#F9669D',
+                color: 'white',
+              }),
+              multiValueLabel: (base) => ({
+                ...base,
+                color: 'white',
+              }),
+              multiValueRemove: (base) => ({
+                ...base,
+                color: 'white',
+                ':hover': {
+                  backgroundColor: '#1C1447',
+                  color: 'white',
+                },
+                cursor: 'pointer',
+              }),
+              placeholder: (base) => ({
+                ...base,
+                color: '#4B3A7A',
+              }),
+              singleValue: (base) => ({
+                ...base,
+                color: '#1C1447',
+              }),
+            }}
+          />
+        </div>
+        <div className="flex justify-end space-x-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="bg-[#E5E7EB] text-[#1C1447] px-4 py-2 rounded-xl font-semibold hover:bg-[#D1D5DB] transition-all duration-300 transform hover:scale-105"
+          >
+            ยกเลิก
+          </button>
+          <button
+            type="submit"
+            className="bg-[#F9669D] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#F9669D]/80 transition-all duration-300 transform hover:scale-105"
+          >
+            บันทึก
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
