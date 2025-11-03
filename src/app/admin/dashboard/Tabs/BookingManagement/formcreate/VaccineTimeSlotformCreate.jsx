@@ -1,20 +1,18 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
 import Select from 'react-select';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faXmark, faCheck, faClock, faSyringe, faCircle, faArrowRight } from '@fortawesome/free-solid-svg-icons';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 const MySwal = withReactContent(Swal);
 
-const colors = {
-  primary: '#F9669D',
-  secondary: '#30266D',
-  text: '#30266D',
-  border: '#30266D',
-  bg: '#FFFFFF',
-};
 
 function generateTimeOptions(serviceStartTime, serviceEndTime, intervalMinutes = 15) {
   const times = [];
@@ -46,25 +44,36 @@ function timeToMinutes(time) {
 function filterAvailableTimes(allTimes, allSlots, selectedVaccineId) {
   if (!allSlots || allSlots.length === 0 || !selectedVaccineId) return allTimes;
 
-  const occupiedIntervals = [];
-  allSlots.forEach((slot) => {
-    if (slot.attributes.vaccine?.data?.id === selectedVaccineId) {
-      const slotStart = slot.attributes?.startTime?.slice(0, 5);
-      const slotEnd = slot.attributes?.endTime?.slice(0, 5);
-      if (slotStart && slotEnd) {
-        const startMinutes = timeToMinutes(slotStart);
-        const endMinutes = timeToMinutes(slotEnd);
-        occupiedIntervals.push({ start: startMinutes, end: endMinutes });
-      }
-    }
-  });
-
   return allTimes.filter((time) => {
     const timeMinutes = timeToMinutes(time.value);
-    return !occupiedIntervals.some(
-      (interval) => timeMinutes >= interval.start && timeMinutes < interval.end
-    );
+    for (const slot of allSlots) {
+      if (slot.attributes?.vaccine?.data?.id !== selectedVaccineId) continue;
+      const slotStartMinutes = timeToMinutes(slot.attributes?.startTime?.slice(0, 5));
+      const slotEndMinutes = timeToMinutes(slot.attributes?.endTime?.slice(0, 5));
+      if (timeMinutes >= slotStartMinutes && timeMinutes <= slotEndMinutes) {
+        return false;
+      }
+    }
+    return true;
   });
+}
+
+function checkTimeOverlap(startTime, endTime, allSlots, vaccineId) {
+  const startMinutes = timeToMinutes(startTime?.slice(0, 5));
+  const endMinutes = timeToMinutes(endTime?.slice(0, 5));
+  const conflicts = allSlots
+    .filter((slot) => slot.attributes?.vaccine?.data?.id === vaccineId)
+    .filter((slot) => {
+      const slotStartMinutes = timeToMinutes(slot.attributes?.startTime?.slice(0, 5));
+      const slotEndMinutes = timeToMinutes(slot.attributes?.endTime?.slice(0, 5));
+      return startMinutes < slotEndMinutes && endMinutes > slotStartMinutes;
+    })
+    .map((slot) => ({
+      startTime: slot.attributes?.startTime?.slice(0, 5),
+      endTime: slot.attributes?.endTime?.slice(0, 5),
+    }));
+
+  return { isOverlap: conflicts.length > 0, conflicts };
 }
 
 function calculateRemainingQuota(allSlots, maxQuota) {
@@ -72,136 +81,127 @@ function calculateRemainingQuota(allSlots, maxQuota) {
   return Math.max(0, maxQuota - usedQuota);
 }
 
-const customSelectStyles = {
-  control: (base) => ({
-    ...base,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderColor: `${colors.border}/50`,
-    boxShadow: 'none',
-    color: colors.text,
-    borderRadius: '0.75rem',
-    padding: '0.25rem',
-    backdropFilter: 'blur(8px)',
-    fontSize: '1rem',
-    '&:hover': {
-      borderColor: colors.primary,
-      transform: 'scale(1.02)',
-      transition: 'all 0.3s ease',
-    },
-  }),
-  menu: (base) => ({
-    ...base,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    backdropFilter: 'blur(8px)',
-    border: `1px solid ${colors.border}/50`,
-    borderRadius: '0.75rem',
-    fontSize: '1rem',
-  }),
-  option: (base, state) => ({
-    ...base,
-    backgroundColor: state.isFocused ? colors.primary : 'transparent',
-    color: state.isFocused ? 'white' : colors.text,
-    cursor: state.isDisabled ? 'not-allowed' : 'pointer',
-    opacity: state.isDisabled ? 0.5 : 1,
-    fontSize: '1rem',
-    '&:hover': {
-      backgroundColor: state.isDisabled ? 'transparent' : colors.primary,
-      color: state.isDisabled ? colors.text : 'white',
-    },
-  }),
-  singleValue: (base) => ({
-    ...base,
-    color: colors.text,
-    fontSize: '1rem',
-  }),
-  placeholder: (base) => ({
-    ...base,
-    color: colors.text,
-    fontSize: '1rem',
-  }),
-};
-
-export default function VaccineTimeSlotFormCreate({ onSave, onCancel }) {
+export default function VaccineTimeSlotFormCreate({ onSave = () => {}, onCancel = () => {} }) {
   const router = useRouter();
   const [vaccines, setVaccines] = useState([]);
   const [selectedVaccine, setSelectedVaccine] = useState(null);
   const [startTime, setStartTime] = useState(null);
   const [endTime, setEndTime] = useState(null);
-  const [quota, setQuota] = useState(1);
+  const [quota, setQuota] = useState('');
   const [isEnabled, setIsEnabled] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [timeSlots, setTimeSlots] = useState([]);
-  const [timeOptions, setTimeOptions] = useState([]);
-  const [endTimeOptions, setEndTimeOptions] = useState([]);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [maxQuota, setMaxQuota] = useState(null);
   const [remainingQuota, setRemainingQuota] = useState(null);
-  const [vaccineQuotas, setVaccineQuotas] = useState({});
+  const [allSlots, setAllSlots] = useState([]);
+  const [currentStep, setCurrentStep] = useState(1); // 步骤控制
+
+  async function fetchSlots() {
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_STRAPI_URL;
+      if (!baseUrl) {
+        throw new Error('NEXT_PUBLIC_STRAPI_URL is not defined in environment variables');
+      }
+      const token = sessionStorage.getItem('jwt');
+      if (!token) {
+        throw new Error('Unauthorized: No JWT token found');
+      }
+      const slotsRes = await fetch(
+        `${baseUrl}/api/vaccine-time-slots?populate[vaccine][fields][0]=title&populate[vaccine][fields][1]=maxQuota`,
+        {
+          headers: { Authorization: `Bearer ${token}`, 'Cache-Control': 'no-cache' },
+        }
+      );
+      if (!slotsRes.ok) {
+        const errorData = await slotsRes.json().catch(() => ({}));
+        throw new Error(`Failed to fetch slots: ${errorData?.error?.message || 'Unknown error'}`);
+      }
+      const slotsData = await slotsRes.json();
+      const fetchedSlots = Array.isArray(slotsData.data) ? slotsData.data : [];
+      setAllSlots(fetchedSlots);
+      return fetchedSlots;
+    } catch (error) {
+      setError(
+        error.message.includes('Unauthorized')
+          ? 'กรุณาเข้าสู่ระบบใหม่'
+          : 'ไม่สามารถโหลดข้อมูลช่วงเวลาได้ กรุณาลองใหม่'
+      );
+      if (error.message.includes('Unauthorized')) {
+        sessionStorage.removeItem('jwt');
+        router.replace('/login', { scroll: false });
+      }
+      return [];
+    }
+  }
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const [vaccineRes, slotsRes] = await Promise.all([
-          fetch(
-            `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccines?filters[useTimeSlots][$eq]=true&fields[0]=title&fields[1]=serviceStartTime&fields[2]=serviceEndTime&fields[3]=maxQuota&fields[4]=useTimeSlots`,
-            { credentials: 'include', cache: 'no-store' }
-          ),
-          fetch(
-            `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccine-time-slots?populate[vaccine][fields][0]=title`,
-            { credentials: 'include', cache: 'no-store' }
-          ),
-        ]);
-
-        if (!vaccineRes.ok || !slotsRes.ok) {
-          const errorData = await (vaccineRes.ok ? slotsRes : vaccineRes).json();
-          throw new Error(errorData.error?.message || `HTTP ${vaccineRes.status || slotsRes.status}`);
+        setLoading(true);
+        const baseUrl = process.env.NEXT_PUBLIC_STRAPI_URL;
+        if (!baseUrl) {
+          throw new Error('NEXT_PUBLIC_STRAPI_URL is not defined in environment variables');
         }
 
+        const token = sessionStorage.getItem('jwt');
+        if (!token) {
+          throw new Error('Unauthorized: No JWT token found');
+        }
+
+        const vaccineRes = await fetch(
+          `${baseUrl}/api/vaccines?filters[useTimeSlots][$eq]=true&fields[0]=title&fields[1]=serviceStartTime&fields[2]=serviceEndTime&fields[3]=useTimeSlots&fields[4]=maxQuota`,
+          {
+            headers: { Authorization: `Bearer ${token}`, 'Cache-Control': 'no-cache' },
+          }
+        );
+
+        if (!vaccineRes.ok) {
+          const errorData = await vaccineRes.json().catch(() => ({}));
+          throw new Error(`Failed to fetch vaccines: ${errorData?.error?.message || 'Unknown error'}`);
+        }
+
+        const fetchedSlots = await fetchSlots();
         const vaccineData = await vaccineRes.json();
-        const slotsData = await slotsRes.json();
-        const fetchedVaccines = vaccineData.data || [];
-        setVaccines(fetchedVaccines);
-        setTimeSlots(slotsData.data || []);
 
-        const quotas = {};
-        fetchedVaccines.forEach((vaccine) => {
-          const allSlotsForVaccine = (slotsData.data || []).filter(
-            (slot) => slot.attributes.vaccine?.data?.id === vaccine.id
-          );
-          const remaining = calculateRemainingQuota(allSlotsForVaccine, vaccine.attributes?.maxQuota || 0);
-          quotas[vaccine.id] = remaining;
-        });
-        setVaccineQuotas(quotas);
+        const fetchedVaccines = Array.isArray(vaccineData.data) ? vaccineData.data : [];
+        const vaccineOptions = fetchedVaccines
+          .map((vaccine) => {
+            const maxQuota = vaccine.attributes?.maxQuota ?? 0;
+            const filteredSlots = fetchedSlots.filter(
+              (slot) => slot.attributes?.vaccine?.data?.id === vaccine.id
+            );
+            const remainingQuota = calculateRemainingQuota(filteredSlots, maxQuota);
+            return {
+              value: vaccine.id,
+              label: vaccine.attributes?.title || 'Unknown Vaccine',
+              serviceStartTime: vaccine.attributes?.serviceStartTime?.slice(0, 5),
+              serviceEndTime: vaccine.attributes?.serviceEndTime?.slice(0, 5),
+              maxQuota,
+              remainingQuota,
+            };
+          })
+          .filter((vaccine) => vaccine.remainingQuota > 0);
 
-        if (fetchedVaccines.length === 0) {
-          MySwal.fire({
-            title: 'ไม่มีวัคซีน',
-            text: 'ไม่พบวัคซีนที่สามารถกำหนดช่วงเวลาได้ กรุณาตรวจสอบการตั้งค่าวัคซีน',
-            icon: 'info',
-            customClass: {
-              popup: 'bg-white/95 backdrop-blur-lg rounded-2xl shadow-lg border border-[#30266D]/50 p-6',
-              title: 'text-xl font-bold text-[#30266D] mb-3',
-              htmlContainer: 'text-base text-[#30266D] font-medium mb-4',
-              confirmButton: 'bg-[#F9669D] text-white px-4 py-2 rounded-xl font-semibold text-base hover:bg-[#30266D]/80 transition-all duration-300 transform hover:scale-105',
-            },
-            confirmButtonText: 'ตกลง',
-          });
+        setVaccines(vaccineOptions);
+
+        if (vaccineOptions.length > 0 && !selectedVaccine) {
+          setSelectedVaccine(vaccineOptions[0]);
         }
       } catch (error) {
-        MySwal.fire({
-          title: 'เกิดข้อผิดพลาด',
-          text: error.message === 'Unauthorized' ? 'กรุณาเข้าสู่ระบบใหม่' : 'ไม่สามารถโหลดข้อมูลได้',
-          icon: 'error',
-          customClass: {
-            popup: 'bg-white/95 backdrop-blur-lg rounded-2xl shadow-lg border border-[#30266D]/50 p-6',
-            title: 'text-xl font-bold text-[#30266D] mb-3',
-            htmlContainer: 'text-base text-[#30266D] font-medium mb-4',
-            confirmButton: 'bg-[#F9669D] text-white px-4 py-2 rounded-xl font-semibold text-base hover:bg-[#30266D]/80 transition-all duration-300 transform hover:scale-105',
-          },
-          confirmButtonText: 'ตกลง',
-        });
-        if (error.message === 'Unauthorized') {
-          router.push('/login');
+        setError(
+          error.message.includes('Unauthorized')
+            ? 'กรุณาเข้าสู่ระบบใหม่'
+            : error.message.includes('NEXT_PUBLIC_STRAPI_URL')
+            ? 'URL ของเซิร์ฟเวอร์ Strapi ไม่ได้ถูกกำหนด กรุณาตรวจสอบไฟล์ .env'
+            : 'ไม่สามารถโหลดข้อมูลวัคซีนได้ กรุณาลองใหม่'
+        );
+        if (error.message.includes('Unauthorized')) {
+          sessionStorage.removeItem('jwt');
+          router.replace('/login', { scroll: false });
         }
+      } finally {
+        setLoading(false);
       }
     }
     fetchData();
@@ -209,51 +209,52 @@ export default function VaccineTimeSlotFormCreate({ onSave, onCancel }) {
 
   useEffect(() => {
     if (selectedVaccine) {
-      const vaccine = vaccines.find((v) => v.id === selectedVaccine.value);
-      const serviceStartTime = vaccine?.attributes?.serviceStartTime?.slice(0, 5);
-      const serviceEndTime = vaccine?.attributes?.serviceEndTime?.slice(0, 5);
-      const allTimes = generateTimeOptions(serviceStartTime, serviceEndTime);
-      const availableTimes = filterAvailableTimes(allTimes, timeSlots, selectedVaccine.value);
-      console.log('Available times:', availableTimes.map(t => t.value)); // Debug
-      setTimeOptions(availableTimes);
-      setStartTime(null);
-      setEndTime(null);
-      setEndTimeOptions(availableTimes);
-      setMaxQuota(vaccine?.attributes?.maxQuota || null);
-      setRemainingQuota(calculateRemainingQuota(
-        timeSlots.filter((slot) => slot.attributes.vaccine?.data?.id === selectedVaccine.value),
-        vaccine?.attributes?.maxQuota || 0
-      ));
+      async function updateQuota() {
+        const fetchedSlots = await fetchSlots();
+        const filteredSlots = fetchedSlots.filter(
+          (slot) => slot.attributes?.vaccine?.data?.id === selectedVaccine.value
+        );
+        const vaccine = vaccines.find((v) => v.value === selectedVaccine.value);
+        const maxQuota = vaccine?.maxQuota ?? 0;
+        const remaining = calculateRemainingQuota(filteredSlots, maxQuota);
+        setMaxQuota(maxQuota);
+        setRemainingQuota(remaining);
+      }
+      updateQuota();
     } else {
-      setTimeOptions([]);
-      setStartTime(null);
-      setEndTime(null);
-      setEndTimeOptions([]);
       setMaxQuota(null);
       setRemainingQuota(null);
     }
-  }, [selectedVaccine, vaccines, timeSlots]);
+  }, [selectedVaccine, vaccines]);
 
-  useMemo(() => {
-    if (startTime && selectedVaccine) {
-      const startMinutes = timeToMinutes(startTime.value);
-      const allSlotsForVaccine = timeSlots.filter((slot) => slot.attributes.vaccine?.data?.id === selectedVaccine.value);
-      const filteredEndTimes = timeOptions.filter((opt) => {
-        const optMinutes = timeToMinutes(opt.value);
-        if (optMinutes <= startMinutes) return false;
+  const allTimeOptions = useMemo(() => {
+    const startTime = selectedVaccine?.serviceStartTime || '08:00';
+    const endTime = selectedVaccine?.serviceEndTime || '17:00';
+    return generateTimeOptions(startTime, endTime);
+  }, [selectedVaccine]);
+
+  const timeOptions = useMemo(() => {
+    const vaccineId = selectedVaccine?.value;
+    return filterAvailableTimes(allTimeOptions, allSlots, vaccineId);
+  }, [allTimeOptions, allSlots, selectedVaccine]);
+
+  const endTimeOptions = useMemo(() => {
+    if (!startTime || !selectedVaccine) return [];
+    const startMinutes = timeToMinutes(startTime.value);
+    const allSlotsForVaccine = allSlots.filter(
+      (slot) => slot.attributes.vaccine?.data?.id === selectedVaccine.value
+    );
+    return allTimeOptions
+      .filter((opt) => timeToMinutes(opt.value) > startMinutes)
+      .filter((time) => {
+        const proposedEndMinutes = timeToMinutes(time.value);
         return !allSlotsForVaccine.some((slot) => {
           const slotStart = timeToMinutes(slot.attributes.startTime?.slice(0, 5));
           const slotEnd = timeToMinutes(slot.attributes.endTime?.slice(0, 5));
-          return optMinutes > startMinutes && optMinutes <= slotEnd;
+          return startMinutes < slotEnd && proposedEndMinutes > slotStart;
         });
       });
-      console.log('Filtered end times:', filteredEndTimes.map(t => t.value)); // Debug
-      setEndTimeOptions(filteredEndTimes);
-      setEndTime(null);
-    } else {
-      setEndTimeOptions(timeOptions);
-    }
-  }, [startTime, timeOptions, timeSlots, selectedVaccine]);
+  }, [startTime, allTimeOptions, allSlots, selectedVaccine]);
 
   function formatTimeToStrapi(time) {
     if (!time?.value) return null;
@@ -264,331 +265,808 @@ export default function VaccineTimeSlotFormCreate({ onSave, onCancel }) {
     e.preventDefault();
     setSubmitting(true);
 
-    if (!selectedVaccine || !startTime || !endTime || !quota) {
-      await MySwal.fire({
-        title: 'แจ้งเตือน',
-        text: 'กรุณาเลือกวัคซีน, เวลาเริ่ม, เวลาสิ้นสุด, และจำนวนโควต้า',
-        icon: 'warning',
-        customClass: {
-          popup: 'bg-white/95 backdrop-blur-lg rounded-2xl shadow-lg border border-[#30266D]/50 p-6',
-          title: 'text-xl font-bold text-[#30266D] mb-3',
-          htmlContainer: 'text-base text-[#30266D] font-medium mb-4',
-          confirmButton: 'bg-[#F9669D] text-white px-4 py-2 rounded-xl font-semibold text-base hover:bg-[#30266D]/80 transition-all duration-300 transform hover:scale-105',
-        },
-        confirmButtonText: 'ตกลง',
-      });
-      setSubmitting(false);
-      return;
-    }
-
-    if (startTime.value >= endTime.value) {
-      await MySwal.fire({
-        title: 'แจ้งเตือน',
-        text: 'เวลาเริ่มต้นต้องน้อยกว่าเวลาสิ้นสุด',
-        icon: 'warning',
-        customClass: {
-          popup: 'bg-white/95 backdrop-blur-lg rounded-2xl shadow-lg border border-[#30266D]/50 p-6',
-          title: 'text-xl font-bold text-[#30266D] mb-3',
-          htmlContainer: 'text-base text-[#30266D] font-medium mb-4',
-          confirmButton: 'bg-[#F9669D] text-white px-4 py-2 rounded-xl font-semibold text-base hover:bg-[#30266D]/80 transition-all duration-300 transform hover:scale-105',
-        },
-        confirmButtonText: 'ตกลง',
-      });
-      setSubmitting(false);
-      return;
-    }
-
-    const vaccine = vaccines.find((v) => v.id === selectedVaccine.value);
-    const serviceStartTime = vaccine?.attributes?.serviceStartTime?.slice(0, 5);
-    const serviceEndTime = vaccine?.attributes?.serviceEndTime?.slice(0, 5);
-    const startMinutes = timeToMinutes(startTime.value);
-    const endMinutes = timeToMinutes(endTime.value);
-    const serviceStartMinutes = timeToMinutes(serviceStartTime);
-    const serviceEndMinutes = timeToMinutes(serviceEndTime);
-
-    if (
-      !serviceStartTime ||
-      !serviceEndTime ||
-      startMinutes < serviceStartMinutes ||
-      endMinutes > serviceEndMinutes
-    ) {
-      await MySwal.fire({
-        title: 'แจ้งเตือน',
-        text: 'เวลาที่เลือกไม่อยู่ในช่วงเวลาบริการของวัคซีน',
-        icon: 'warning',
-        customClass: {
-          popup: 'bg-white/95 backdrop-blur-lg rounded-2xl shadow-lg border border-[#30266D]/50 p-6',
-          title: 'text-xl font-bold text-[#30266D] mb-3',
-          htmlContainer: 'text-base text-[#30266D] font-medium mb-4',
-          confirmButton: 'bg-[#F9669D] text-white px-4 py-2 rounded-xl font-semibold text-base hover:bg-[#30266D]/80 transition-all duration-300 transform hover:scale-105',
-        },
-        confirmButtonText: 'ตกลง',
-      });
-      setSubmitting(false);
-      return;
-    }
-
-    if (maxQuota !== null && (quota > maxQuota || quota > remainingQuota)) {
-      await MySwal.fire({
-        title: 'แจ้งเตือน',
-        text: `จำนวนโควต้าต้องไม่เกิน ${maxQuota} และโควต้าที่เหลืออยู่ (${remainingQuota})`,
-        icon: 'warning',
-        customClass: {
-          popup: 'bg-white/95 backdrop-blur-lg rounded-2xl shadow-lg border border-[#30266D]/50 p-6',
-          title: 'text-xl font-bold text-[#30266D] mb-3',
-          htmlContainer: 'text-base text-[#30266D] font-medium mb-4',
-          confirmButton: 'bg-[#F9669D] text-white px-4 py-2 rounded-xl font-semibold text-base hover:bg-[#30266D]/80 transition-all duration-300 transform hover:scale-105',
-        },
-        confirmButtonText: 'ตกลง',
-      });
-      setSubmitting(false);
-      return;
-    }
-
-    const allSlotsForVaccine = timeSlots.filter(
-      (slot) => slot.attributes.vaccine?.data?.id === selectedVaccine.value
-    );
-    const { isOverlap, conflicts } = (function (startTime, endTime, allSlots) {
-      if (!startTime || !endTime) return { isOverlap: false, conflicts: [] };
-      const startMinutes = timeToMinutes(startTime.slice(0, 5));
-      const endMinutes = timeToMinutes(endTime.slice(0, 5));
-      const conflicts = [];
-
-      allSlots.forEach((slot) => {
-        const slotStart = timeToMinutes(slot.attributes.startTime?.slice(0, 5) || '00:00');
-        const slotEnd = timeToMinutes(slot.attributes.endTime?.slice(0, 5) || '00:00');
-        if (
-          (startMinutes < slotEnd && endMinutes > slotStart) &&
-          !(startMinutes === slotEnd || endMinutes === slotStart)
-        ) {
-          conflicts.push({
-            startTime: slot.attributes.startTime?.slice(0, 5) || '-',
-            endTime: slot.attributes.endTime?.slice(0, 5) || '-',
-          });
-        }
-      });
-
-      return { isOverlap: conflicts.length > 0, conflicts };
-    })(startTime.value, endTime.value, allSlotsForVaccine);
-
-    if (isOverlap) {
-      await MySwal.fire({
-        title: 'แจ้งเตือน',
-        text: `เวลาที่เลือกซ้อนทับกับช่วงเวลา: ${conflicts
-          .map((conflict) => `${conflict.startTime}–${conflict.endTime}`)
-          .join(', ')} กรุณาเลือกช่วงเวลาใหม่`,
-        icon: 'warning',
-        customClass: {
-          popup: 'bg-white/95 backdrop-blur-lg rounded-2xl shadow-lg border border-[#30266D]/50 p-6',
-          title: 'text-xl font-bold text-[#30266D] mb-3',
-          htmlContainer: 'text-base text-[#30266D] font-medium mb-4',
-          confirmButton: 'bg-[#F9669D] text-white px-4 py-2 rounded-xl font-semibold text-base hover:bg-[#30266D]/80 transition-all duration-300 transform hover:scale-105',
-        },
-        confirmButtonText: 'ตกลง',
-      });
-      setSubmitting(false);
-      return;
-    }
-
-    const confirm = await MySwal.fire({
-      title: 'ยืนยันการสร้าง',
-      text: `คุณต้องการสร้างช่วงเวลา ${startTime.value}–${endTime.value} สำหรับ ${selectedVaccine.label} ด้วยโควต้า ${quota} หรือไม่?`,
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: 'ใช่, สร้าง',
-      cancelButtonText: 'ยกเลิก',
-      customClass: {
-        popup: 'bg-white/95 backdrop-blur-lg rounded-2xl shadow-lg border border-[#30266D]/50 p-6',
-        title: 'text-xl font-bold text-[#30266D] mb-3',
-        htmlContainer: 'text-base text-[#30266D] font-medium mb-4',
-        confirmButton: 'bg-[#F9669D] text-white px-4 py-2 rounded-xl font-semibold text-base hover:bg-[#30266D]/80 transition-all duration-300 transform hover:scale-105',
-        cancelButton: 'bg-white text-[#30266D] px-4 py-2 rounded-xl font-semibold text-base border border-[#30266D]/50 hover:bg-[#30266D]/30 transition-all duration-300 transform hover:scale-105',
-      },
-    });
-
-    if (!confirm.isConfirmed) {
-      setSubmitting(false);
-      return;
-    }
-
-    const payload = {
-      data: {
-        startTime: formatTimeToStrapi(startTime),
-        endTime: formatTimeToStrapi(endTime),
-        quota,
-        is_enabled: isEnabled,
-        vaccine: selectedVaccine.value,
-      },
-    };
-
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccine-time-slots`, {
+      if (!selectedVaccine || !startTime || !endTime || !quota) {
+        throw new Error('กรุณาเลือกวัคซีน, เวลาเริ่ม, เวลาสิ้นสุด, และจำนวนโควต้า');
+      }
+
+      if (startTime.value >= endTime.value) {
+        throw new Error('เวลาเริ่มต้นต้องน้อยกว่าเวลาสิ้นสุด');
+      }
+
+      if (quota <= 0) {
+        throw new Error('จำนวนโควต้าต้องมากกว่า 0');
+      }
+
+      if (maxQuota === 0) {
+        throw new Error('ไม่สามารถเพิ่มโควต้าได้ เนื่องจากโควต้าสูงสุดเป็น 0');
+      }
+
+      const filteredSlots = allSlots.filter(
+        (slot) => slot.attributes?.vaccine?.data?.id === selectedVaccine.value
+      );
+      const usedQuota = filteredSlots.reduce((sum, slot) => sum + (slot.attributes?.quota || 0), 0);
+      const totalQuota = usedQuota + Number(quota);
+
+      if (maxQuota !== null && totalQuota > maxQuota) {
+        throw new Error(
+          `จำนวนโควต้ารวม (${totalQuota}) เกินโควต้าสูงสุด (${maxQuota}) คงเหลือ: ${remainingQuota}`
+        );
+      }
+
+      const startMinutes = timeToMinutes(startTime.value);
+      const endMinutes = timeToMinutes(endTime.value);
+      const serviceStartMinutes = timeToMinutes(selectedVaccine?.serviceStartTime);
+      const serviceEndMinutes = timeToMinutes(selectedVaccine?.serviceEndTime);
+
+      if (
+        !selectedVaccine?.serviceStartTime ||
+        !selectedVaccine?.serviceEndTime ||
+        startMinutes < serviceStartMinutes ||
+        endMinutes > serviceEndMinutes
+      ) {
+        throw new Error('เวลาที่เลือกไม่อยู่ในช่วงเวลาบริการของวัคซีน');
+      }
+
+      const { isOverlap, conflicts } = checkTimeOverlap(
+        formatTimeToStrapi(startTime),
+        formatTimeToStrapi(endTime),
+        allSlots,
+        selectedVaccine.value
+      );
+      if (isOverlap) {
+        const conflictMessage = conflicts
+          .map((conflict) => `${conflict.startTime}–${conflict.endTime}`)
+          .join(', ');
+        throw new Error(`เวลาที่เลือกซ้อนทับกับช่วงเวลา: ${conflictMessage} กรุณาเลือกช่วงเวลาใหม่`);
+      }
+
+      const token = sessionStorage.getItem('jwt');
+      if (!token) {
+        throw new Error('Unauthorized: No JWT token found');
+      }
+
+      const confirm = await MySwal.fire({
+        title: 'ยืนยันการสร้าง',
+        text: `คุณต้องการสร้างช่วงเวลา ${startTime.value}–${endTime.value} สำหรับ ${selectedVaccine.label} ด้วยโควต้า ${quota} หรือไม่?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'ใช่, สร้าง',
+        cancelButtonText: 'ยกเลิก',
+        customClass: {
+          popup: 'bg-[var(--card)] rounded-[var(--radius)] shadow-lg border border-[var(--border)] p-6 max-w-md w-full',
+          title: 'text-lg font-semibold text-[var(--card-foreground)]',
+          htmlContainer: 'text-sm text-[var(--muted-foreground)]',
+          confirmButton: 'bg-[var(--primary)] text-[var(--primary-foreground)] px-4 py-2 rounded-[var(--radius)] text-sm font-medium hover:bg-[var(--primary)]/90 transition-all duration-200 shadow-sm',
+          cancelButton: 'bg-[var(--secondary)] text-[var(--secondary-foreground)] px-4 py-2 rounded-[var(--radius)] text-sm font-medium hover:bg-[var(--secondary)]/90 transition-all duration-200 shadow-sm',
+        },
+      });
+
+      if (!confirm.isConfirmed) {
+        setSubmitting(false);
+        return;
+      }
+
+      const payload = {
+        data: {
+          startTime: formatTimeToStrapi(startTime),
+          endTime: formatTimeToStrapi(endTime),
+          quota: Number(quota),
+          is_enabled: isEnabled,
+          vaccine: selectedVaccine.value,
+        },
+      };
+
+      const url = `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccine-time-slots`;
+      const res = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          'Cache-Control': 'no-cache',
         },
-        credentials: 'include',
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(5000),
       });
 
       if (!res.ok) {
-        const result = await res.json();
-        if (res.status === 401) throw new Error('Unauthorized');
-        throw new Error(result.error?.message || 'เกิดข้อผิดพลาด');
+        const errorData = await res.json().catch(() => ({}));
+        const message = errorData?.error?.message || errorData?.error?.name || res.statusText || 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ';
+        throw new Error(res.status === 401 ? 'Unauthorized' : res.status === 403 ? `Forbidden: ${message}` : message);
       }
+
+      const responseData = await res.json();
+      const newSlot = {
+        id: responseData.data.id,
+        attributes: {
+          startTime: formatTimeToStrapi(startTime),
+          endTime: formatTimeToStrapi(endTime),
+          quota: Number(quota),
+          is_enabled: isEnabled,
+          vaccine: {
+            data: {
+              id: selectedVaccine.value,
+              attributes: {
+                title: selectedVaccine.label,
+                maxQuota: selectedVaccine.maxQuota,
+              },
+            },
+          },
+        },
+      };
+
+      const updatedSlots = await fetchSlots();
+      setAllSlots(updatedSlots);
 
       await MySwal.fire({
         title: 'สำเร็จ',
         text: 'สร้างช่วงเวลาให้บริการเรียบร้อยแล้ว',
         icon: 'success',
         customClass: {
-          popup: 'bg-white/95 backdrop-blur-lg rounded-2xl shadow-lg border border-[#30266D]/50 p-6',
-          title: 'text-xl font-bold text-[#30266D] mb-3',
-          htmlContainer: 'text-base text-[#30266D] font-medium mb-4',
-          confirmButton: 'bg-[#F9669D] text-white px-4 py-2 rounded-xl font-semibold text-base hover:bg-[#30266D]/80 transition-all duration-300 transform hover:scale-105',
+          popup: 'bg-[var(--card)] rounded-[var(--radius)] shadow-lg border border-[var(--border)] p-6 max-w-md w-full',
+          title: 'text-lg font-semibold text-[var(--card-foreground)]',
+          htmlContainer: 'text-sm text-[var(--muted-foreground)]',
+          confirmButton: 'bg-[var(--primary)] text-[var(--primary-foreground)] px-4 py-2 rounded-[var(--radius)] text-sm font-medium hover:bg-[var(--primary)]/90 transition-all duration-200 shadow-sm',
         },
+        confirmButtonText: 'ตกลง',
         timer: 1500,
         showConfirmButton: false,
       });
-      onSave();
+      onSave(newSlot);
     } catch (error) {
+      const errorMessage = error.message.includes('Unauthorized')
+        ? 'กรุณาเข้าสู่ระบบใหม่'
+        : error.message.includes('Forbidden')
+        ? 'คุณไม่มีสิทธิ์ในการดำเนินการนี้ กรุณาตรวจสอบบทบาทผู้ใช้'
+        : error.message;
+
       await MySwal.fire({
-        title: 'เกิดข้อผิดพลาด',
-        text: error.message === 'Unauthorized' ? 'กรุณาเข้าสู่ระบบใหม่' : 'ไม่สามารถสร้างช่วงเวลาได้',
+        title: error.message.includes('Forbidden') ? 'ไม่มีสิทธิ์' : 'เกิดข้อผิดพลาด',
+        text: errorMessage,
         icon: 'error',
         customClass: {
-          popup: 'bg-white/95 backdrop-blur-lg rounded-2xl shadow-lg border border-[#30266D]/50 p-6',
-          title: 'text-xl font-bold text-[#30266D] mb-3',
-          htmlContainer: 'text-base text-[#30266D] font-medium mb-4',
-          confirmButton: 'bg-[#F9669D] text-white px-4 py-2 rounded-xl font-semibold text-base hover:bg-[#30266D]/80 transition-all duration-300 transform hover:scale-105',
+          popup: 'bg-[var(--card)] rounded-[var(--radius)] shadow-lg border border-[var(--border)] p-6 max-w-md w-full',
+          title: 'text-lg font-semibold text-[var(--card-foreground)]',
+          htmlContainer: 'text-sm text-[var(--muted-foreground)]',
+          confirmButton: 'bg-[var(--primary)] text-[var(--primary-foreground)] px-4 py-2 rounded-[var(--radius)] text-sm font-medium hover:bg-[var(--primary)]/90 transition-all duration-200 shadow-sm',
         },
         confirmButtonText: 'ตกลง',
       });
-      if (error.message === 'Unauthorized') {
-        router.push('/login');
+
+      if (error.message.includes('Unauthorized') || error.message.includes('Forbidden')) {
+        sessionStorage.removeItem('jwt');
+        sessionStorage.removeItem('userRole');
+        sessionStorage.removeItem('userId');
+        router.replace('/login', { scroll: false });
       }
     } finally {
       setSubmitting(false);
     }
   }
 
-  const vaccineOptions = vaccines
-    .filter((vaccine) => vaccine.attributes?.useTimeSlots && vaccineQuotas[vaccine.id] > 0)
-    .map((vaccine) => ({
-      value: vaccine.id,
-      label: vaccine.attributes.title,
-    }));
+  const customSelectStyles = {
+    control: (base) => ({
+      ...base,
+      backgroundColor: 'var(--input)',
+      borderColor: 'var(--border)',
+      boxShadow: 'none',
+      borderRadius: 'var(--radius)',
+      padding: '0.5rem',
+      color: 'var(--foreground)',
+      '&:hover': {
+        borderColor: 'var(--primary)',
+      },
+      transition: 'all 0.3s ease',
+    }),
+    menu: (base) => ({
+      ...base,
+      backgroundColor: 'var(--card)',
+      border: '1px solid var(--border)',
+      borderRadius: 'var(--radius)',
+    }),
+    option: (base, state) => ({
+      ...base,
+      backgroundColor: state.isFocused ? 'var(--primary)' : 'var(--card)',
+      color: state.isFocused ? 'var(--primary-foreground)' : 'var(--foreground)',
+      cursor: 'pointer',
+      '&:hover': {
+        backgroundColor: 'var(--primary)',
+        color: 'var(--primary-foreground)',
+      },
+    }),
+    singleValue: (base) => ({
+      ...base,
+      color: 'var(--foreground)',
+    }),
+    placeholder: (base) => ({
+      ...base,
+      color: 'var(--muted-foreground)',
+    }),
+  };
+
+  // 时间线步骤
+  const timelineSteps = [
+    { id: 1, title: 'เลือกวัคซีน', icon: faSyringe, completed: selectedVaccine !== null },
+    { id: 2, title: 'กำหนดเวลา', icon: faClock, completed: startTime !== null && endTime !== null },
+    { id: 3, title: 'ตั้งค่าโควต้า', icon: faCircle, completed: quota !== '' },
+    { id: 4, title: 'ยืนยันการสร้าง', icon: faCheck, completed: false }
+  ];
+
+  if (error) {
+    return (
+      <motion.div
+        className="min-h-screen py-8 px-4 sm:px-6 lg:px-8 font-Prompt bg-gradient-to-br from-[var(--background)] to-[var(--muted)]/20"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+      >
+        <div className="max-w-3xl mx-auto">
+          <div className="flex items-center mb-6">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--secondary)] flex items-center justify-center">
+              <FontAwesomeIcon icon={faClock} className="text-white text-xl" />
+            </div>
+            <h1 className="text-2xl font-bold text-[var(--foreground)] ml-4">สร้างช่วงเวลาให้บริการใหม่</h1>
+          </div>
+          
+          <div className="relative">
+            <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gradient-to-b from-[var(--primary)] to-[var(--secondary)]"></div>
+            
+            <motion.div 
+              className="ml-16 p-6 bg-gradient-to-r from-[var(--primary)]/5 to-[var(--secondary)]/5 rounded-2xl border border-[var(--border)]/20 backdrop-blur-sm"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              <div className="absolute left-6 w-5 h-5 rounded-full bg-[var(--background)] border-4 border-[var(--destructive)] z-10"></div>
+              
+              <div className="text-center space-y-6">
+                <p className="text-base font-medium text-[var(--destructive)]">{error}</p>
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="mt-6 flex justify-center gap-2">
+                  <Button
+                    onClick={() => window.location.reload()}
+                    className="flex items-center gap-2 bg-gradient-to-r from-[var(--secondary)] to-[var(--primary)] text-[var(--primary-foreground)] hover:from-[var(--primary)] hover:to-[var(--secondary)] text-sm px-4 py-2 rounded-[var(--radius)] shadow-sm transition-all duration-200"
+                    aria-label="ลองโหลดข้อมูลใหม่"
+                  >
+                    <FontAwesomeIcon icon={faXmark} className="h-5 w-5" />
+                    ลองใหม่
+                  </Button>
+                  <Button
+                    onClick={onCancel}
+                    className="flex items-center gap-2 bg-gradient-to-r from-[var(--secondary)] to-[var(--primary)] text-[var(--primary-foreground)] hover:from-[var(--primary)] hover:to-[var(--secondary)] text-sm px-4 py-2 rounded-[var(--radius)] shadow-sm transition-all duration-200"
+                    aria-label="กลับไปยังหน้าก่อนหน้า"
+                  >
+                    <FontAwesomeIcon icon={faXmark} className="h-5 w-5" />
+                    กลับ
+                  </Button>
+                </motion.div>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <motion.div
+        className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-[var(--background)] to-[var(--muted)]/20 font-Prompt"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+      >
+        <motion.div
+          className="w-8 h-8 border-4 border-[var(--border)] border-t-[var(--primary)] rounded-full"
+          animate={{ rotate: 360 }}
+          transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+        />
+        <p className="mt-3 text-sm font-medium text-[var(--muted-foreground)]">กำลังโหลดข้อมูล...</p>
+      </motion.div>
+    );
+  }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 font-poppins p-6 bg-white/95 backdrop-blur-lg rounded-xl shadow-lg border border-[#30266D]/50">
-      <h3 className="text-2xl font-semibold text-[#30266D]">สร้างช่วงเวลาให้บริการใหม่</h3>
-      <div>
-        <label className="block mb-1 text-base font-medium text-[#30266D]" htmlFor="vaccine">วัคซีน</label>
-        {vaccines.length > 0 ? (
-          <Select
-            id="vaccine"
-            options={vaccineOptions}
-            value={selectedVaccine}
-            onChange={setSelectedVaccine}
-            placeholder="-- เลือกวัคซีน --"
-            noOptionsMessage={() => 'ไม่พบวัคซีน'}
-            isClearable
-            isDisabled={submitting}
-            styles={customSelectStyles}
-            aria-label="เลือกวัคซีนสำหรับช่วงเวลาให้บริการ"
-          />
-        ) : (
-          <p className="text-base text-[#30266D] italic">ไม่พบวัคซีนที่สามารถกำหนดช่วงเวลาได้</p>
-        )}
-      </div>
-
-      <div className="flex gap-4">
-        <div className="flex-1">
-          <label className="block mb-1 text-base font-medium text-[#30266D]" htmlFor="start-time">เวลาเริ่ม</label>
-          <Select
-            id="start-time"
-            options={timeOptions}
-            value={startTime}
-            onChange={(selected) => {
-              setStartTime(selected);
-              if (!selected) setEndTime(null);
-            }}
-            placeholder="-- เลือกเวลาเริ่ม --"
-            isClearable
-            isDisabled={submitting || !selectedVaccine}
-            styles={customSelectStyles}
-            aria-label="เลือกเวลาเริ่มของช่วงเวลาให้บริการ"
-          />
+    <motion.div
+      className="min-h-screen py-8 px-4 sm:px-6 lg:px-8 font-Prompt bg-gradient-to-br from-[var(--background)] to-[var(--muted)]/20"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      role="main"
+      aria-label="Create new vaccine time slot"
+    >
+      <div className="max-w-4xl mx-auto">
+        <div className="flex items-center mb-8">
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--secondary)] flex items-center justify-center">
+            <FontAwesomeIcon icon={faClock} className="text-white text-xl" />
+          </div>
+          <h1 className="text-2xl font-bold text-[var(--foreground)] ml-4">สร้างช่วงเวลาให้บริการใหม่</h1>
         </div>
+        
 
-        <div className="flex-1">
-          <label className="block mb-1 text-base font-medium text-[#30266D]" htmlFor="end-time">เวลาสิ้นสุด</label>
-          <Select
-            id="end-time"
-            options={endTimeOptions}
-            value={endTime}
-            onChange={setEndTime}
-            placeholder="-- เลือกเวลาสิ้นสุด --"
-            isClearable
-            isDisabled={submitting || !startTime}
-            styles={customSelectStyles}
-            aria-label="เลือกเวลาสิ้นสุดของช่วงเวลาให้บริการ"
-          />
+        <div className="mb-12">
+          <div className="flex items-center justify-between relative">
+            <div className="absolute left-0 right-0 h-0.5 bg-[var(--border)] top-5 z-0"></div>
+            <div 
+              className="absolute left-0 h-0.5 bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)] top-5 z-0 transition-all duration-500"
+              style={{ width: `${((currentStep - 1) / (timelineSteps.length - 1)) * 100}%` }}
+            ></div>
+            
+            {timelineSteps.map((step, index) => (
+              <div key={step.id} className="relative z-10 flex flex-col items-center">
+                <motion.button
+                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
+                    step.completed 
+                      ? 'bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)] text-white' 
+                      : currentStep > step.id 
+                        ? 'bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)] text-white'
+                        : 'bg-[var(--background)] border-2 border-[var(--border)] text-[var(--muted-foreground)]'
+                  }`}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => {
+                    if (step.completed || currentStep > step.id) {
+                      setCurrentStep(step.id);
+                    }
+                  }}
+                >
+                  <FontAwesomeIcon icon={step.icon} className="text-sm" />
+                </motion.button>
+                <span className={`mt-2 text-xs font-medium ${
+                  currentStep >= step.id ? 'text-[var(--foreground)]' : 'text-[var(--muted-foreground)]'
+                }`}>
+                  {step.title}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        <div className="relative">
+          <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gradient-to-b from-[var(--primary)] to-[var(--secondary)]"></div>
+          
+          <form onSubmit={handleSubmit}>
+            <motion.div 
+              className="relative mb-8"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              <div className="absolute left-6 w-5 h-5 rounded-full bg-[var(--background)] border-4 border-[var(--primary)] z-10"></div>
+              
+              <div className="ml-16">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[var(--primary)]/20 to-[var(--secondary)]/20 flex items-center justify-center">
+                    <FontAwesomeIcon icon={faSyringe} className="text-[var(--primary)] text-xl" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold text-[var(--foreground)]">เลือกวัคซีน</h2>
+                    <p className="text-[var(--muted-foreground)]">เลือกวัคซีนที่ต้องการสร้างช่วงเวลาให้บริการ</p>
+                  </div>
+                </div>
+                
+                <AnimatePresence>
+                  {currentStep === 1 && (
+                    <motion.div 
+                      className="p-6 bg-gradient-to-r from-[var(--primary)]/5 to-[var(--secondary)]/5 rounded-2xl border border-[var(--border)]/20 backdrop-blur-sm"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      {vaccines.length === 0 ? (
+                        <p className="text-sm font-medium text-[var(--destructive)]">
+                          ไม่พบวัคซีนที่พร้อมใช้งาน กรุณาเพิ่มวัคซีนในระบบ
+                        </p>
+                      ) : (
+                        <div>
+                          <label
+                            htmlFor="vaccine-select"
+                            className="block text-sm font-medium text-[var(--foreground)] mb-2"
+                          >
+                            วัคซีน *
+                          </label>
+                          <Select
+                            id="vaccine-select"
+                            options={vaccines}
+                            value={selectedVaccine}
+                            onChange={(selected) => {
+                              setSelectedVaccine(selected);
+                              setStartTime(null);
+                              setEndTime(null);
+                            }}
+                            placeholder="-- เลือกวัคซีน --"
+                            isClearable
+                            isDisabled={submitting || vaccines.length === 0}
+                            styles={customSelectStyles}
+                            aria-label="เลือกวัคซีนสำหรับช่วงเวลาให้บริการ"
+                            required
+                          />
+                          
+                          {selectedVaccine && (
+                            <motion.div 
+                              className="mt-4 p-4 bg-[var(--card)]/50 rounded-xl"
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.3 }}
+                            >
+                              <p className="text-sm text-[var(--foreground)]">
+                                <span className="font-medium">วัคซีน:</span> {selectedVaccine.label}
+                              </p>
+                              <p className="text-sm text-[var(--foreground)]">
+                                <span className="font-medium">ช่วงเวลาบริการ:</span> {selectedVaccine.serviceStartTime} - {selectedVaccine.serviceEndTime}
+                              </p>
+                              <p className="text-sm text-[var(--foreground)]">
+                                <span className="font-medium">โควต้าสูงสุด:</span> {selectedVaccine.maxQuota}
+                              </p>
+                              <p className="text-sm text-[var(--foreground)]">
+                                <span className="font-medium">คงเหลือ:</span> {selectedVaccine.remainingQuota}
+                              </p>
+                            </motion.div>
+                          )}
+                          
+                          <div className="flex justify-end mt-4">
+                            <motion.button
+                              type="button"
+                              className="px-4 py-2 bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)] text-white rounded-lg font-medium text-sm flex items-center gap-2"
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => selectedVaccine && setCurrentStep(2)}
+                              disabled={!selectedVaccine}
+                            >
+                              ถัดไป <FontAwesomeIcon icon={faArrowRight} />
+                            </motion.button>
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </motion.div>
+            <motion.div 
+              className="relative mb-8"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+            >
+              <div className={`absolute left-6 w-5 h-5 rounded-full bg-[var(--background)] border-4 z-10 ${
+                startTime && endTime ? 'border-[var(--primary)]' : 'border-[var(--border)]'
+              }`}></div>
+              
+              <div className="ml-16">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[var(--primary)]/20 to-[var(--secondary)]/20 flex items-center justify-center">
+                    <FontAwesomeIcon icon={faClock} className="text-[var(--primary)] text-xl" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold text-[var(--foreground)]">กำหนดเวลา</h2>
+                    <p className="text-[var(--muted-foreground)]">เลือกช่วงเวลาที่เปิดให้บริการ</p>
+                  </div>
+                </div>
+                
+                <AnimatePresence>
+                  {currentStep === 2 && (
+                    <motion.div 
+                      className="p-6 bg-gradient-to-r from-[var(--primary)]/5 to-[var(--secondary)]/5 rounded-2xl border border-[var(--border)]/20 backdrop-blur-sm"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label
+                            htmlFor="start-time"
+                            className="block text-sm font-medium text-[var(--foreground)] mb-2"
+                          >
+                            เวลาเริ่ม *
+                          </label>
+                          <Select
+                            id="start-time"
+                            options={timeOptions}
+                            value={startTime}
+                            onChange={(selected) => {
+                              setStartTime(selected);
+                              if (!selected) setEndTime(null);
+                            }}
+                            placeholder="-- เลือกเวลาเริ่ม --"
+                            isClearable
+                            isDisabled={submitting || !selectedVaccine}
+                            styles={customSelectStyles}
+                            aria-label="เลือกเวลาเริ่มของช่วงเวลาให้บริการ"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor="end-time"
+                            className="block text-sm font-medium text-[var(--foreground)] mb-2"
+                          >
+                            เวลาสิ้นสุด *
+                          </label>
+                          <Select
+                            id="end-time"
+                            options={endTimeOptions}
+                            value={endTime}
+                            onChange={setEndTime}
+                            placeholder="-- เลือกเวลาสิ้นสุด --"
+                            isClearable
+                            isDisabled={submitting || !selectedVaccine || !startTime}
+                            styles={customSelectStyles}
+                            aria-label="เลือกเวลาสิ้นสุดของช่วงเวลาให้บริการ"
+                            required
+                          />
+                        </div>
+                      </div>
+                      
+                      {startTime && endTime && (
+                        <motion.div 
+                          className="mt-4 p-4 bg-[var(--card)]/50 rounded-xl"
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.3 }}
+                        >
+                          <p className="text-sm text-[var(--foreground)]">
+                            <span className="font-medium">ช่วงเวลาที่เลือก:</span> {startTime.value} - {endTime.value}
+                          </p>
+                          <p className="text-sm text-[var(--foreground)]">
+                            <span className="font-medium">ระยะเวลา:</span> {timeToMinutes(endTime.value) - timeToMinutes(startTime.value)} นาที
+                          </p>
+                        </motion.div>
+                      )}
+                      
+                      <div className="flex justify-between mt-4">
+                        <motion.button
+                          type="button"
+                          className="px-4 py-2 bg-[var(--secondary)] text-[var(--secondary-foreground)] rounded-lg font-medium text-sm"
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => setCurrentStep(1)}
+                        >
+                          ย้อนกลับ
+                        </motion.button>
+                        <motion.button
+                          type="button"
+                          className="px-4 py-2 bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)] text-white rounded-lg font-medium text-sm flex items-center gap-2"
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => startTime && endTime && setCurrentStep(3)}
+                          disabled={!startTime || !endTime}
+                        >
+                          ถัดไป <FontAwesomeIcon icon={faArrowRight} />
+                        </motion.button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </motion.div>
+            
+            <motion.div 
+              className="relative mb-8"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+            >
+              <div className={`absolute left-6 w-5 h-5 rounded-full bg-[var(--background)] border-4 z-10 ${
+                quota ? 'border-[var(--primary)]' : 'border-[var(--border)]'
+              }`}></div>
+              
+              <div className="ml-16">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[var(--primary)]/20 to-[var(--secondary)]/20 flex items-center justify-center">
+                    <FontAwesomeIcon icon={faCircle} className="text-[var(--primary)] text-xl" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold text-[var(--foreground)]">ตั้งค่าโควต้า</h2>
+                    <p className="text-[var(--muted-foreground)]">กำหนดจำนวนผู้รับบริการในช่วงเวลานี้</p>
+                  </div>
+                </div>
+                
+                <AnimatePresence>
+                  {currentStep === 3 && (
+                    <motion.div 
+                      className="p-6 bg-gradient-to-r from-[var(--primary)]/5 to-[var(--secondary)]/5 rounded-2xl border border-[var(--border)]/20 backdrop-blur-sm"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <div>
+                        <label
+                          htmlFor="quota"
+                          className="block text-sm font-medium text-[var(--foreground)] mb-2"
+                        >
+                          จำนวนโควต้า *
+                        </label>
+                        <Input
+                          id="quota"
+                          type="number"
+                          min={1}
+                          max={remainingQuota !== null ? remainingQuota : undefined}
+                          value={quota}
+                          onChange={(e) => setQuota(e.target.value)}
+                          disabled={submitting || !selectedVaccine || maxQuota === 0 || remainingQuota === 0}
+                          className="w-full px-4 py-2 text-sm border border-[var(--border)] bg-[var(--input)] text-[var(--foreground)] rounded-[var(--radius)] focus:ring-2 focus:ring-[var(--ring)] transition-all duration-300"
+                          aria-label="จำนวนโควต้าสำหรับช่วงเวลาให้บริการ"
+                          required
+                        />
+                        
+                        {selectedVaccine && maxQuota !== null && (
+                          <div className="mt-2 space-y-1">
+                            <p className="text-sm text-[var(--muted-foreground)]">
+                              โควต้าสูงสุด: {maxQuota}, คงเหลือ: {remainingQuota}
+                            </p>
+                            {maxQuota === 0 && (
+                              <p className="text-sm text-[var(--destructive)]">
+                                ไม่สามารถเพิ่มโควต้าได้ เนื่องจากโควต้าสูงสุดเป็น 0
+                              </p>
+                            )}
+                            {maxQuota > 0 && remainingQuota === 0 && (
+                              <p className="text-sm text-[var(--destructive)]">
+                                โควต้าสำหรับวัคซีนนี้เต็มแล้ว (สูงสุด: {maxQuota})
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="mt-6">
+                        <div className="flex items-center gap-2">
+                          <input
+                            id="is-enabled"
+                            type="checkbox"
+                            checked={isEnabled}
+                            onChange={(e) => setIsEnabled(e.target.checked)}
+                            disabled={submitting}
+                            className="h-4 w-4 text-[var(--primary)] focus:ring-[var(--ring)] border-[var(--border)] rounded cursor-pointer transition-all duration-300"
+                            aria-label="เปิดใช้งานช่วงเวลาให้บริการ"
+                          />
+                          <label
+                            htmlFor="is-enabled"
+                            className="text-sm font-medium text-[var(--foreground)]"
+                          >
+                            เปิดใช้งานช่วงเวลานี้
+                          </label>
+                        </div>
+                      </div>
+                      
+                      {quota && (
+                        <motion.div 
+                          className="mt-4 p-4 bg-[var(--card)]/50 rounded-xl"
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.3 }}
+                        >
+                          <p className="text-sm text-[var(--foreground)]">
+                            <span className="font-medium">โควต้าที่ตั้ง:</span> {quota} คน
+                          </p>
+                          <p className="text-sm text-[var(--foreground)]">
+                            <span className="font-medium">สถานะ:</span> {isEnabled ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}
+                          </p>
+                        </motion.div>
+                      )}
+                      <div className="flex justify-between">
+                        <div className="flex gap-2">
+                          <motion.button
+                            type="button"
+                            className="px-4 py-2 bg-[var(--secondary)] text-[var(--secondary-foreground)] rounded-lg font-medium text-sm"
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => setCurrentStep(3)}
+                          >
+                            ย้อนกลับ
+                          </motion.button>
+                          <motion.button
+                            type="button"
+                            className="px-4 py-2 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-lg font-medium text-sm flex items-center gap-2"
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={onCancel}
+                          >
+                            <FontAwesomeIcon icon={faXmark} />
+                            ยกเลิก
+                          </motion.button>
+                        </div>
+                        <motion.button
+                          type="submit"
+                          className="px-4 py-2 bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)] text-white rounded-lg font-medium text-sm flex items-center gap-2"
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          disabled={submitting}
+                        >
+                          {submitting ? 'กำลังสร้าง...' : 'สร้างช่วงเวลา'}
+                        </motion.button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </motion.div>
+            
+            <motion.div 
+              className="relative mb-8"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+            >
+              <div className="absolute left-6 w-5 h-5 rounded-full bg-[var(--background)] border-4 border-[var(--primary)] z-10"></div>
+              
+              <div className="ml-16">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[var(--primary)]/20 to-[var(--secondary)]/20 flex items-center justify-center">
+                    <FontAwesomeIcon icon={faCheck} className="text-[var(--primary)] text-xl" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold text-[var(--foreground)]">ยืนยันการสร้าง</h2>
+                    <p className="text-[var(--muted-foreground)]">ตรวจสอบข้อมูลและยืนยันการสร้างช่วงเวลาให้บริการ</p>
+                  </div>
+                </div>
+                
+                <AnimatePresence>
+                  {currentStep === 4 && (
+                    <motion.div 
+                      className="p-6 bg-gradient-to-r from-[var(--primary)]/5 to-[var(--secondary)]/5 rounded-2xl border border-[var(--border)]/20 backdrop-blur-sm"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <div className="space-y-4">
+                        <div className="p-4 bg-[var(--card)]/50 rounded-xl">
+                          <h3 className="text-lg font-semibold text-[var(--foreground)] mb-3">สรุปข้อมูลช่วงเวลาให้บริการ</h3>
+                          
+                          <div className="space-y-2">
+                            <div className="flex justify-between">
+                              <span className="text-sm text-[var(--muted-foreground)]">วัคซีน:</span>
+                              <span className="text-sm text-[var(--foreground)] font-medium">{selectedVaccine?.label}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm text-[var(--muted-foreground)]">ช่วงเวลา:</span>
+                              <span className="text-sm text-[var(--foreground)] font-medium">{startTime?.value} - {endTime?.value}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm text-[var(--muted-foreground)]">โควต้า:</span>
+                              <span className="text-sm text-[var(--foreground)] font-medium">{quota} คน</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm text-[var(--muted-foreground)]">สถานะ:</span>
+                              <span className={`text-sm font-medium ${isEnabled ? 'text-[var(--success)]' : 'text-[var(--destructive)]'}`}>
+                                {isEnabled ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="flex justify-between">
+                          <motion.button
+                            type="button"
+                            className="px-4 py-2 bg-[var(--secondary)] text-[var(--secondary-foreground)] rounded-lg font-medium text-sm"
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => setCurrentStep(3)}
+                          >
+                            ย้อนกลับ
+                          </motion.button>
+                          <motion.button
+                            type="submit"
+                            className="px-4 py-2 bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)] text-white rounded-lg font-medium text-sm flex items-center gap-2"
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            disabled={submitting}
+                          >
+                            {submitting ? 'กำลังสร้าง...' : 'สร้างช่วงเวลา'}
+                          </motion.button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div> 
+            </motion.div>
+          </form>
         </div>
       </div>
-
-      <div>
-        <label className="block mb-1 text-base font-medium text-[#30266D]" htmlFor="quota">จำนวนโควต้า</label>
-        <input
-          id="quota"
-          type="number"
-          min={1}
-          max={remainingQuota !== null ? remainingQuota : undefined}
-          value={quota}
-          onChange={(e) => setQuota(Number(e.target.value))}
-          disabled={submitting || !selectedVaccine}
-          className="w-full border border-[#30266D]/50 px-3 py-2 rounded-xl bg-white/95 backdrop-blur-sm text-base text-[#30266D] focus:outline-none focus:ring-2 focus:ring-[#F9669D] transition-all duration-300 hover:scale-[1.02] disabled:opacity-50"
-          aria-label="จำนวนโควต้าสำหรับช่วงเวลาให้บริการ"
-        />
-        {selectedVaccine && maxQuota !== null && (
-          <p className="mt-1 text-sm text-[#30266D]">
-            โควต้าสูงสุด: {maxQuota}, คงเหลือ: {remainingQuota}
-          </p>
-        )}
-      </div>
-
-      <div className="flex items-center gap-2">
-        <input
-          id="is-enabled"
-          type="checkbox"
-          checked={isEnabled}
-          onChange={(e) => setIsEnabled(e.target.checked)}
-          disabled={submitting}
-          className="h-4 w-4 text-[#F9669D] focus:ring-[#F9669D] border-[#30266D]/50 rounded cursor-pointer transition-all duration-300 disabled:opacity-50"
-          aria-label="เปิดใช้งานช่วงเวลาให้บริการ"
-        />
-        <label className="text-base font-medium text-[#30266D]" htmlFor="is-enabled">เปิดใช้งาน</label>
-      </div>
-
-      <div className="flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={submitting}
-          className="px-4 py-2 rounded-xl bg-white text-[#30266D] border border-[#30266D]/50 text-base font-semibold hover:bg-[#30266D]/30 transition-all duration-300 hover:scale-105 disabled:opacity-50"
-          aria-label="ยกเลิกการสร้างช่วงเวลาให้บริการ"
-        >
-          ยกเลิก
-        </button>
-        <button
-          type="submit"
-          disabled={submitting}
-          className="px-4 py-2 rounded-xl bg-[#F9669D] text-white text-base font-semibold hover:bg-[#30266D]/80 transition-all duration-300 hover:scale-105 disabled:opacity-50"
-          aria-label="สร้างช่วงเวลาให้บริการ"
-        >
-          {submitting ? 'กำลังสร้าง...' : 'สร้าง'}
-        </button>
-      </div>
-    </form>
+    </motion.div>
   );
 }

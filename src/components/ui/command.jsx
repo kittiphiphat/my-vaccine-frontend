@@ -2,8 +2,8 @@
 
 import * as React from "react"
 import { Command as CommandPrimitive } from "cmdk"
-import { MagnifyingGlassIcon } from "@heroicons/react/24/solid"
-
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons';
 import { cn } from "@/lib/utils"
 import {
   Dialog,
@@ -62,7 +62,7 @@ function CommandInput({
     <div
       data-slot="command-input-wrapper"
       className="flex h-9 items-center gap-2 border-b px-3">
-      <MagnifyingGlassIcon className="size-4 shrink-0 opacity-50" />
+      <FontAwesomeIcon icon={faMagnifyingGlass} className="h-4 w-4 shrink-0 opacity-50" />
       <CommandPrimitive.Input
         data-slot="command-input"
         className={cn(

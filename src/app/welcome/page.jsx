@@ -1,266 +1,320 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import Image from "next/image";
-import Swal from "sweetalert2";
-import withReactContent from "sweetalert2-react-content";
-import { motion, AnimatePresence } from "framer-motion";
-import { PaperAirplaneIcon } from "@heroicons/react/24/solid";
+import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { useTheme } from 'next-themes';
+import { motion, AnimatePresence } from 'framer-motion';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faHeartPulse, faPaperPlane, faSyringe, faShieldVirus, faUserCircle } from '@fortawesome/free-solid-svg-icons';
+import axios from 'axios';
+import { cn } from '@/lib/utils';
 
-const MySwal = withReactContent(Swal);
+// Animation Variants
+const cardVariants = {
+  initial: { opacity: 0, scale: 0.9, y: 30 },
+  animate: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } },
+  exit: { opacity: 0, scale: 0.9, y: -30, transition: { duration: 0.3 } },
+};
 
 const buttonVariants = {
-  hover: { scale: 1.05, boxShadow: "0px 6px 24px rgba(0, 0, 0, 0.2)" },
-  tap: { scale: 0.95 },
+  hover: { scale: 1.03, boxShadow: '0 10px 20px rgba(0, 0, 0, 0.1)' },
+  tap: { scale: 0.97 },
 };
 
-const usernameVariants = {
-  hover: { scale: 1.05, transition: { duration: 0.2 } },
+const floatingVariants = {
+  initial: { y: 0 },
+  animate: {
+    y: [-10, 10, -10],
+    transition: {
+      duration: 4,
+      repeat: Infinity,
+      ease: 'easeInOut'
+    }
+  }
 };
 
-export default function WelcomeBack() {
+const textVariants = {
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.3 } },
+};
+
+const backgroundVariants = {
+  initial: { opacity: 0 },
+  animate: { 
+    opacity: 1, 
+    transition: { duration: 1.5, ease: 'easeInOut' } 
+  }
+};
+
+export default function Welcome() {
   const router = useRouter();
-  const [user, setUser] = useState(null);
+  const { resolvedTheme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [showWelcome, setShowWelcome] = useState(false);
-  const [slideUp, setSlideUp] = useState(false);
   const [isEntering, setIsEntering] = useState(false);
+  const [username, setUsername] = useState('');
+  const [userRole, setUserRole] = useState(null);
+  const [userId, setUserId] = useState(null);
+  const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    async function checkLoginAndPatient() {
-      try {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/users/me?populate=role`,
+  const checkLoginAndPatient = useCallback(async () => {
+    try {
+      const jwt = sessionStorage.getItem('jwt');
+      const role = sessionStorage.getItem('userRole');
+      const storedUsername = sessionStorage.getItem('username');
+      const storedUserId = sessionStorage.getItem('userId');
+
+      if (!jwt || !role || !storedUserId || !['admin', 'patient'].includes(role)) {
+        console.warn('Welcome: Invalid or incomplete session, redirecting to login');
+        router.replace('/login', { scroll: false });
+        setLoading(false);
+        return;
+      }
+
+      setUserRole(role);
+      setUserId(storedUserId);
+      setUsername(storedUsername || 'ผู้ใช้');
+
+      if (role === 'patient') {
+        const patientRes = await axios.get(
+          `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/patients?filters[user][id][$eq]=${storedUserId}&populate=user`,
           {
-            method: "GET",
-            credentials: "include",
-          }
-        );
-
-        if (!res.ok) {
-          if (res.status === 401) {
-            throw new Error("Unauthorized");
-          }
-          throw new Error("เกิดข้อผิดพลาดขณะโหลดข้อมูลผู้ใช้");
-        }
-
-        const data = await res.json();
-        const roleName = data.role?.name?.toLowerCase();
-
-        // Validate role
-        if (!["patient", "admin"].includes(roleName)) {
-          // Replace console.error with SweetAlert2
-          await MySwal.fire({
-            icon: "error",
-            title: "บทบาทไม่ถูกต้อง",
-            text: "บทบาทผู้ใช้ไม่ถูกต้อง กรุณาติดต่อผู้ดูแลระบบ",
-            confirmButtonColor: "#DC2626",
-            customClass: {
-              popup: "rounded-lg shadow-md border border-[#D1D5DB]/50",
-              title: "text-base sm:text-lg font-semibold text-[#1F2937]",
-              htmlContainer: "text-sm sm:text-base text-[#4B5563]",
-              confirmButton: "bg-[#DC2626] text-white px-5 py-3 rounded-lg font-medium hover:bg-[#DC2626]/90 transition-all duration-300 shadow-sm text-sm sm:text-base",
+            headers: {
+              Authorization: `Bearer ${jwt}`,
+              'Cache-Control': 'no-cache',
+              Pragma: 'no-cache',
+              Expires: '0',
             },
-            background: "#FFFFFF",
-            color: "#1F2937",
-          });
-          throw new Error("บทบาทผู้ใช้ไม่ถูกต้อง");
-        }
-
-        const patientRes = await fetch(
-          `${process.env.NEXT_PUBLIC_STRAPI_URL}/api/patients?filters[user][id][$eq]=${data.id}`,
-          {
-            method: "GET",
-            credentials: "include",
+            timeout: 5000,
           }
         );
 
-        if (!patientRes.ok) {
-          throw new Error("เกิดข้อผิดพลาดขณะโหลดข้อมูลผู้ป่วย");
-        }
+        const patientData = patientRes.data;
+        const patientList = patientData.data || patientData;
+        const hasPatient = Array.isArray(patientList) && patientList.length > 0;
 
-        const patientData = await patientRes.json();
-        const hasPatient = Array.isArray(patientData.data) && patientData.data.length > 0;
-
-        if (!hasPatient && roleName === "patient") {
-          router.replace("/patient");
+        if (!hasPatient) {
+          setShowWelcome(false);
+          setTimeout(() => router.replace('/patient', { scroll: false }), 0);
           return;
         }
-
-        setUser(data);
-        setShowWelcome(true);
-      } catch (e) {
-        // Replace console.error with SweetAlert2
-        await MySwal.fire({
-          icon: "error",
-          title: "เกิดข้อผิดพลาด",
-          text: e.message === "Unauthorized" ? "กรุณาเข้าสู่ระบบ" : e.message,
-          confirmButtonColor: "#DC2626",
-          customClass: {
-            popup: "rounded-lg shadow-md border border-[#D1D5DB]/50",
-            title: "text-base sm:text-lg font-semibold text-[#1F2937]",
-            htmlContainer: "text-sm sm:text-base text-[#4B5563]",
-            confirmButton: "bg-[#DC2626] text-white px-5 py-3 rounded-lg font-medium hover:bg-[#DC2626]/90 transition-all duration-300 shadow-sm text-sm sm:text-base",
-          },
-          background: "#FFFFFF",
-          color: "#1F2937",
-        }).then(() => {
-          router.push("/login");
-        });
-      } finally {
-        setLoading(false);
       }
-    }
 
-    checkLoginAndPatient();
+      setShowWelcome(true);
+    } catch (error) {
+      console.error('Welcome: Error during patient data check:', error);
+      let errorMessage = 'ไม่สามารถตรวจสอบข้อมูลผู้ใช้ได้ กรุณาลองใหม่';
+      if (axios.isAxiosError(error)) {
+        errorMessage = error.response?.data?.error?.message || error.message;
+        if (error.response?.status === 401) {
+          sessionStorage.clear();
+          window.dispatchEvent(new Event('session-updated'));
+          router.replace('/login', { scroll: false });
+          return;
+        }
+      }
+      router.replace('/login', { scroll: false });
+    } finally {
+      setLoading(false);
+    }
   }, [router]);
 
-  const getRoleName = () => {
-    return user?.role?.name?.toLowerCase() || null;
-  };
-
-  const getUsername = () => {
-    return user?.username || "ผู้ใช้";
-  };
+  useEffect(() => {
+    setMounted(true);
+    checkLoginAndPatient();
+  }, [checkLoginAndPatient]);
 
   const handleEnter = () => {
     setIsEntering(true);
-    setSlideUp(true);
-
     setTimeout(() => {
-      const role = getRoleName();
-      if (role === "admin") router.push("/admin/dashboard");
-      else if (role === "patient") router.push("/vaccines");
-      else router.push("/login");
+      if (userRole === 'admin') router.push('/admin/dashboard');
+      else if (userRole === 'patient') router.push('/vaccines');
+      else router.push('/login');
     }, 800);
   };
 
-  return (
-    <div
-      className="w-full h-screen flex items-center justify-center px-4 relative overflow-hidden"
-      style={{ backgroundColor: "#FFFFFF" }}
-    >
-      <div
-        className="absolute inset-0"
-        style={{
-          background: "radial-gradient(circle at 50% 50%, #F9669D10 0%, transparent 50%)",
-          opacity: 0.5,
-        }}
-      />
+  if (!mounted) {
+    return null;
+  }
 
-      <AnimatePresence>
-        {loading ? (
-          <motion.div
-            key="loading"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="flex flex-col items-center justify-center"
-          >
-            <div
-              className="border-2 border-[#1F2937]/30 border-t-[#30266D] rounded-full w-6 h-6 animate-spin"
-            ></div>
-            <p
-              className="mt-2 text-sm sm:text-base font-medium"
-              style={{ color: "#1F2937" }}
+  return (
+    <main className="min-h-screen flex flex-col bg-[var(--background)] text-[var(--foreground)] font-prompt transition-colors duration-300 overflow-hidden relative">
+      {/* Simple Background Pattern */}
+      <motion.div
+        variants={backgroundVariants}
+        initial="initial"
+        animate="animate"
+        className="absolute inset-0 overflow-hidden pointer-events-none"
+      >
+        <div className="absolute top-20 left-20 w-64 h-64 bg-[var(--primary)]/5 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-20 right-20 w-96 h-96 bg-[var(--secondary)]/5 rounded-full blur-3xl"></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-[var(--accent)]/5 rounded-full blur-3xl"></div>
+      </motion.div>
+
+      <div className="flex-grow flex items-center justify-center px-4 sm:px-6 py-12 relative z-10">
+        <AnimatePresence>
+          {loading ? (
+            <motion.div
+              key="loading"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ duration: 0.3 }}
+              className="flex flex-col items-center justify-center"
+              role="status"
+              aria-live="polite"
             >
-              กำลังโหลด...
-            </p>
-          </motion.div>
-        ) : showWelcome ? (
-          <motion.div
-            key="welcome"
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -50 }}
-            transition={{ duration: 0.5 }}
-            className="relative bg-white/15 backdrop-blur-2xl border border-opacity-80 shadow-xl rounded-3xl p-6 md:p-8 max-w-md w-full text-center font-poppins"
-            style={{ borderColor: "#D1D5DB" }}
-          >
-            <div className="mb-4 md:mb-6">
               <motion.div
-                animate={{
-                  y: [0, -10, 0],
-                  transition: {
-                    repeat: Infinity,
-                    duration: 1.2,
-                    ease: "easeInOut",
-                  },
-                }}
+                className="relative w-16 h-16 sm:w-20 sm:h-20"
+                animate={{ rotate: 360 }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
               >
-                <Image
-                  src="/medcmu2.png"
-                  alt="โลโก้โรงพยาบาล"
-                  width={200}
-                  height={200}
-                  quality={100}
-                  className="mx-auto"
+                <div className="absolute inset-0 rounded-full border-4 border-[var(--primary)]/20"></div>
+                <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-[var(--primary)] border-r-[var(--primary)]"></div>
+                <FontAwesomeIcon
+                  icon={faHeartPulse}
+                  className="absolute inset-0 m-auto w-8 h-8 sm:w-10 sm:h-10 text-[var(--primary)]"
                 />
               </motion.div>
-            </div>
-
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2, duration: 0.5 }}
-              className="text-2xl md:text-3xl font-bold mb-3 md:mb-4 leading-tight"
-              style={{ color: "#1F2937" }}
+              <p className="mt-6 text-base font-medium text-[var(--primary)]">
+                กำลังตรวจสอบข้อมูล...
+              </p>
+            </motion.div>
+          ) : showWelcome ? (
+            <motion.div
+              key="welcome"
+              variants={cardVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="relative bg-[var(--card)]/80 backdrop-blur-md rounded-[var(--radius)] shadow-xl max-w-[95vw] sm:max-w-md lg:max-w-lg w-full p-6 sm:p-8 lg:p-10 text-center border border-[var(--border)]"
             >
-              ยินดีต้อนรับสู่ระบบจองวัคซีน
-            </motion.h1>
+              {/* Simple Top Border */}
+              <div className="absolute top-0 left-0 w-full h-1 bg-[var(--primary)] rounded-t-[var(--radius)]"></div>
+              
+              {/* Floating Icons */}
+              <div className="absolute -top-8 -left-8 opacity-20">
+                <motion.div variants={floatingVariants} initial="initial" animate="animate">
+                  <FontAwesomeIcon icon={faSyringe} className="w-12 h-12 text-[var(--primary)]" />
+                </motion.div>
+              </div>
+              <div className="absolute -top-6 -right-6 opacity-20">
+                <motion.div 
+                  variants={floatingVariants} 
+                  initial="initial" 
+                  animate="animate" 
+                  transition={{ delay: 1 }}
+                >
+                  <FontAwesomeIcon icon={faShieldVirus} className="w-10 h-10 text-[var(--secondary)]" />
+                </motion.div>
+              </div>
+              <div className="absolute -bottom-6 -left-6 opacity-20">
+                <motion.div 
+                  variants={floatingVariants} 
+                  initial="initial" 
+                  animate="animate" 
+                  transition={{ delay: 2 }}
+                >
+                  <FontAwesomeIcon icon={faHeartPulse} className="w-10 h-10 text-[var(--accent)]" />
+                </motion.div>
+              </div>
 
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4, duration: 0.5 }}
-              className="text-base md:text-lg mb-6 md:mb-8 font-medium"
-              style={{ color: "#30266D" }}
-            >
-              สวัสดีคุณ{" "}
-              <motion.span
-                variants={usernameVariants}
-                whileHover="hover"
-                className="font-medium"
-                style={{ color: "#F9669D" }}
+              {/* User Avatar */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.2, duration: 0.5 }}
+                className="flex justify-center mb-6"
               >
-                {getUsername()}
-              </motion.span>{" "}
-              เริ่มจองวัคซีนเพื่อสุขภาพของคุณ
-            </motion.p>
+                <div className="relative">
+                  <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-[var(--primary)] flex items-center justify-center text-3xl font-bold text-[var(--primary-foreground)] shadow-lg">
+                    <FontAwesomeIcon icon={faUserCircle} className="w-12 h-12 sm:w-14 sm:h-14" />
+                  </div>
+                  <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-[var(--accent)] rounded-full flex items-center justify-center shadow-md">
+                    <FontAwesomeIcon icon={faHeartPulse} className="w-4 h-4 text-[var(--primary-foreground)]" />
+                  </div>
+                </div>
+              </motion.div>
 
-            <motion.button
-              onClick={handleEnter}
-              disabled={isEntering}
-              variants={buttonVariants}
-              whileHover="hover"
-              whileTap="tap"
-              className={`w-full text-white px-6 py-3 text-base md:text-lg font-semibold rounded-full flex items-center justify-center gap-2 shadow-lg transition-all ${
-                isEntering ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
-              }`}
-              style={{
-                backgroundColor: isEntering ? "#F9669D/80" : "#F9669D",
-              }}
-              aria-label={isEntering ? "กำลังดำเนินการ" : "เริ่มจองวัคซีน"}
-            >
-              {isEntering ? (
-                <span className="flex items-center justify-center gap-2">
-                  <div
-                    className="border-2 border-[#1F2937]/30 border-t-[#30266D] rounded-full w-4 h-4 animate-spin"
-                  ></div>
-                  กำลังดำเนินการ...
-                </span>
-              ) : (
-                <>
-                  เริ่มจองวัคซีน
-                  <PaperAirplaneIcon className="w-5 h-5" />
-                </>
-              )}
-            </motion.button>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-    </div>
+              {/* Welcome Text */}
+              <motion.h1
+                variants={textVariants}
+                initial="initial"
+                animate="animate"
+                transition={{ delay: 0.3 }}
+                className="text-xl sm:text-2xl lg:text-3xl font-bold text-[var(--primary)] mb-4"
+              >
+                ยินดีต้อนรับสู่ระบบจองวัคซีน
+              </motion.h1>
+              
+              <motion.p
+                variants={textVariants}
+                initial="initial"
+                animate="animate"
+                transition={{ delay: 0.4 }}
+                className="text-base sm:text-lg text-[var(--foreground)]/80 mb-8 leading-relaxed"
+              >
+                สวัสดี, <span className="font-semibold text-[var(--primary)]">{username}</span>
+                <br />
+                จองวัคซีนและดูแลสุขภาพของคุณได้อย่างง่ายดาย
+              </motion.p>
+
+              {/* Action Button */}
+              <motion.button
+                onClick={handleEnter}
+                disabled={isEntering}
+                variants={buttonVariants}
+                whileHover="hover"
+                whileTap="tap"
+                className={cn(
+                  'w-full px-6 py-3 sm:py-4 text-base sm:text-lg font-semibold rounded-[var(--radius)] transition-all duration-300 flex items-center justify-center gap-3 shadow-lg focus:ring-4 focus:ring-[var(--ring)]/20 focus:ring-offset-2 focus:ring-offset-[var(--background)] min-h-[52px] relative overflow-hidden',
+                  isEntering
+                    ? 'bg-[var(--muted-foreground)] text-[var(--muted-foreground)] cursor-not-allowed'
+                    : 'bg-[var(--primary)] text-[var(--primary-foreground)] hover:bg-[var(--primary)]/90 hover:shadow-xl'
+                )}
+                aria-label={isEntering ? 'กำลังดำเนินการ' : 'เริ่มจองวัคซีน'}
+              >
+                {isEntering ? (
+                  <span className="flex items-center justify-center gap-3">
+                    <motion.div
+                      className="w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 border-[var(--primary-foreground)]/30 border-t-[var(--primary-foreground)]"
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                    />
+                    กำลังดำเนินการ...
+                  </span>
+                ) : (
+                  <>
+                    เริ่มจองวัคซีน
+                    <FontAwesomeIcon icon={faPaperPlane} className="w-5 h-5" />
+                  </>
+                )}
+              </motion.button>
+
+              {/* Additional Info */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.8, duration: 0.5 }}
+                className="mt-8 flex items-center justify-center gap-6 text-xs sm:text-sm text-[var(--muted-foreground)]"
+              >
+                <div className="flex items-center gap-2">
+                  <FontAwesomeIcon icon={faShieldVirus} className="w-4 h-4" />
+                  <span>ปลอดภัย</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <FontAwesomeIcon icon={faHeartPulse} className="w-4 h-4" />
+                  <span>ดูแลสุขภาพ</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <FontAwesomeIcon icon={faSyringe} className="w-4 h-4" />
+                  <span>ง่ายและสะดวก</span>
+                </div>
+              </motion.div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+      </div>
+    </main>
   );
 }

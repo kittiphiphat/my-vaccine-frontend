@@ -1,79 +1,66 @@
-
 @import "tailwindcss";
 
 
 @layer base {
   :root {
-    --radius: 0.625rem;
-    --card: #FFFFFF;
-    --card-foreground: #2D2D2D; /* เกือบดำ */
-    --popover: #FFFFFF;
-    --popover-foreground: #2D2D2D;
-    --primary: #6FA88A; /* เขียวมินต์ */
-    --primary-foreground: #FFFFFF;
-    --secondary: #A8B5B2; /* เทามินต์ */
-    --secondary-foreground: #2D2D2D;
-    --muted: #E0E0E0; /* เทาอ่อน */
-    --muted-foreground: #4A4A4A;
-    --accent: #F4A261; /* ส้มอ่อน */
-    --accent-foreground: #2D2D2D;
-    --destructive: #D32F2F; /* แดงสำหรับข้อผิดพลาด */
-    --border: #E0E0E0;
-    --input: #F9FAFB;
-    --ring: #6FA88A;
-    --chart-1: #6FA88A; /* เขียวมินต์ */
-    --chart-2: #A8B5B2;
-    --chart-3: #F4A261;
-    --chart-4: #D32F2F;
-    --chart-5: #E0E0E0;
-    --sidebar: #F9FAFB;
-    --sidebar-foreground: #2D2D2D;
-    --sidebar-primary: #6FA88A;
-    --sidebar-primary-foreground: #FFFFFF;
-    --sidebar-accent: #F4A261;
-    --sidebar-accent-foreground: #2D2D2D;
-    --sidebar-border: #E0E0E0;
-    --sidebar-ring: #6FA88A;
-    --background: #F3F3F1;
-    --foreground: #2D2D2D;
-    --navbar-background: #6FA88A;
-    --navbar-foreground: #FFFFFF;
+    /* รัศมีขอบมน */
+    --radius: 0.75rem;
+    
+    /* Typography */
+    --font-base: 'Prompt', sans-serif;
+    --font-size-base: 16px;
+    --line-height-base: 1.5;
+
+    /* พื้นหลังและตัวอักษร */
+    --background: #E6F0EA; /* Light teal background */
+    --foreground: #1A2E44; /* Dark navy for text */
+    --card: #F5F7FA; /* Light gray for cards */
+    --card-foreground: #1A2E44;
+    --popover: #F5F7FA;
+    --popover-foreground: #1A2E44;
+    --muted-foreground: #6B7280; /* Soft gray for muted text */
+    --border: #E5E7EB; /* Light border gray */
+
+    /* สีหลักและรอง */
+    --primary: #26A69A; /* Teal for primary elements */
+    --primary-foreground: #FFFFFF; /* White for contrast */
+    --secondary: #F5F7FA; /* Matches card for secondary */
+    --secondary-foreground: #1A2E44;
+    --secondary-light: #E6F0EA; /* Light teal for highlights */
+
+    /* สีสนับสนุน */
+    --accent: #26A69A; /* Teal for accents */
+    --destructive: #EF4444; /* สีแดงสด (Light mode) - อ่านง่าย ตัดกับพื้นหลัง */
+    --destructive-foreground: #FFFFFF; /* ขาว สำหรับข้อความบนปุ่มลบ */
+    --ring: #26A69A; /* Matches primary */
+
+    /* Transition สำหรับการเปลี่ยนธีม */
+    transition: all 0.3s ease-in-out;
   }
 
   .dark {
-    --background: #1C1C18;
-    --foreground: #E8E8E8; /* เทาอ่อน */
-    --card: #2A2A2A;
-    --card-foreground: #E8E8E8;
-    --popover: #2A2A2A;
-    --popover-foreground: #E8E8E8;
-    --primary: #6FA88A;
-    --primary-foreground: #FFFFFF;
-    --secondary: #A8B5B2;
-    --secondary-foreground: #E8E8E8;
-    --muted: #4A4A4A;
-    --muted-foreground: #A8B5B2;
-    --accent: #F4A261;
-    --accent-foreground: #1C1C18;
-    --destructive: #D32F2F;
-    --border: #4A4A4A;
-    --input: #4A4A4A;
-    --ring: #6FA88A;
-    --chart-1: #6FA88A;
-    --chart-2: #A8B5B2;
-    --chart-3: #F4A261;
-    --chart-4: #D32F2F;
-    --chart-5: #4A4A4A;
-    --sidebar: #2A2A2A;
-    --sidebar-foreground: #E8E8E8;
-    --sidebar-primary: #6FA88A;
-    --sidebar-primary-foreground: #FFFFFF;
-    --sidebar-accent: #F4A261;
-    --sidebar-accent-foreground: #1C1C18;
-    --sidebar-border: #4A4A4A;
-    --sidebar-ring: #6FA88A;
-    --navbar-background: #6FA88A;
-    --navbar-foreground: #FFFFFF;
+    /* พื้นหลังและตัวอักษร */
+    --background: #1A2E44; /* Dark navy for dark mode */
+    --foreground: #E6F0EA; /* Light teal for text */
+    --card: #2A4056; /* Darker navy for cards */
+    --card-foreground: #E6F0EA;
+    --popover: #2A4056;
+    --popover-foreground: #E6F0EA;
+    --muted-foreground: #9CA3AF; /* Light gray for muted text */
+    --border: #4B5B6D;
+
+    /* สีหลักและรอง */
+    --primary: #26A69A; /* Teal for primary in dark mode */
+    --primary-foreground: #1A2E44; /* Dark navy for contrast */
+    --secondary: #2A4056; /* Matches card for secondary */
+    --secondary-foreground: #E6F0EA;
+    --secondary-light: #F5F7FA; /* Light gray for highlights */
+
+    /* สีสนับสนุน */
+    --accent: #26A69A; /* Consistent accent */
+    --destructive: #F87171; /* สีแดงอ่อน (Dark mode) - อ่านง่ายบนพื้นหลังมืด */
+    --destructive-foreground: #1A2E44; /* สีน้ำเงินเข้ม สำหรับข้อความบนปุ่มลบ */
+    --ring: #E6F0EA; /* Light teal for focus rings */
   }
 }
 
@@ -93,84 +80,6 @@
     border-radius: var(--radius);
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     padding: 1rem;
-  }
-
-  .toggle-switch {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    cursor: pointer;
-  }
-
-  .toggle-switch input {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    border: 0;
-  }
-
-  .toggle-slider {
-    position: relative;
-    width: 3rem;
-    height: 1.5rem;
-    background-color: var(--secondary);
-    border-radius: 9999px;
-    transition: background-color 0.3s;
-  }
-
-  .toggle-slider::before {
-    content: '';
-    position: absolute;
-    top: 0.125rem;
-    left: 0.125rem;
-    width: 1.25rem;
-    height: 1.25rem;
-    background-color: var(--primary);
-    border-radius: 9999px;
-    transition: transform 0.3s;
-  }
-
-  .toggle-switch input:checked + .toggle-slider::before {
-    transform: translateX(1.5rem);
-  }
-
-  .toggle-switch input:checked + .toggle-slider {
-    background-color: var(--accent);
-  }
-
-  .toggle-slider svg {
-    position: absolute;
-    top: 0.125rem;
-    width: 1.25rem;
-    height: 1.25rem;
-    transition: opacity 0.3s;
-  }
-
-  .toggle-slider .sun-icon {
-    left: 0.25rem;
-    opacity: 1;
-  }
-
-  .dark .toggle-slider .sun-icon {
-    opacity: 0;
-  }
-
-  .toggle-slider .moon-icon {
-    right: 0.25rem;
-    opacity: 0;
-  }
-
-  .dark .toggle-slider .moon-icon {
-    opacity: 1;
-  }
-
-  .toggle-slider .sun-icon,
-  .toggle-slider .moon-icon {
-    color: var(--foreground);
   }
 }
 
@@ -206,7 +115,7 @@
 }
 
 .logo-img {
-  filter: hue-rotate(150deg) saturate(1.2) brightness(0.8);
+  filter: grayscale(100%) brightness(0%);
   transition: filter 0.3s ease;
 }
 

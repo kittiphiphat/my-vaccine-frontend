@@ -17,15 +17,19 @@ import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  ChevronDownIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  CalendarIcon,
-  XMarkIcon,
-  FunnelIcon,
-  ArrowPathIcon
-} from '@heroicons/react/24/outline';
+  faChevronDown,
+  faChevronLeft,
+  faChevronRight,
+  faCalendar,
+  faXmark,
+  faFilter,
+  faMagnifyingGlass,
+  faChevronUp,
+  faArrowRotateRight,
+  faDownload,
+} from '@fortawesome/free-solid-svg-icons';
 import {
   Card,
   CardContent,
@@ -47,7 +51,9 @@ import {
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 
 dayjs.locale('th');
 dayjs.extend(buddhistEra);
@@ -59,21 +65,47 @@ dayjs.tz.setDefault('Asia/Bangkok');
 
 const MySwal = withReactContent(Swal);
 
-const chartColors = ['#F9669D', '#30266D', '#10B981', '#3B82F6', '#FBBF24', '#6EE7B7'];
+const chartColors = [
+  '#FF6B6B', // Coral
+  '#4ECDC4', // Teal
+  '#FFD93D', // Yellow
+  '#FF4C4C', // Red
+  '#A9A9A9', // Gray
+  '#6A5ACD', // Purple
+];
 
-const CustomTooltip = ({ active, payload }) => {
+const CustomTooltip = ({ active, payload, label, chartType }) => {
   if (active && payload && payload.length) {
-    const { name, value, percent } = payload[0].payload;
+    const { name, value } = payload[0].payload;
+    const total = Object.values(payload.reduce((acc, p) => {
+      acc[p.dataKey] = (acc[p.dataKey] || 0) + p.value;
+      return acc;
+    }, {})).reduce((sum, val) => sum + val, 0);
+    const percent = total ? (value / total) * 100 : 0;
+
     return (
       <motion.div
-        className="p-3 rounded-lg shadow-lg border border-[#30266D] bg-white text-[#30266D] font-medium select-none"
+        className="p-4 rounded-[var(--radius)] shadow-lg border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)] font-medium select-none"
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.2 }}
       >
-        <p className="mb-1 text-sm">หมวดหมู่: {name}</p>
-        <p className="mb-1 text-sm">จำนวน: {value}</p>
-        {percent !== undefined && <p className="text-sm">สัดส่วน: {(percent * 100).toFixed(2)}%</p>}
+        {chartType === 'line' ? (
+          <>
+            <p className="mb-2 text-sm font-semibold text-[var(--primary)]">
+              วันที่: {dayjs(label).tz('Asia/Bangkok').locale('th').format('D MMMM BBBB')}
+            </p>
+            <p className="mb-2 text-sm font-semibold text-[var(--card-foreground)]">
+              จำนวนใบนัด: {value}
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="mb-2 text-sm font-semibold text-[var(--primary)]">หมวดหมู่: {name}</p>
+            <p className="mb-2 text-sm font-semibold text-[var(--card-foreground)]">จำนวน: {value}</p>
+            <p className="text-sm font-semibold text-[var(--card-foreground)]">สัดส่วน: {percent.toFixed(2)}%</p>
+          </>
+        )}
       </motion.div>
     );
   }
@@ -118,60 +150,78 @@ const DatePicker = forwardRef(({ selected, onSelect, placeholder, minDate, maxDa
   const days = Array.from({ length: daysInMonth(currentDate) }, (_, i) => i + 1);
   const startDay = firstDayOfMonth(currentDate);
 
+  const handleClear = (e) => {
+    e.stopPropagation(); // Prevent opening popover when clicking clear
+    onSelect(null);
+  };
+
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          className={cn(
-            'w-full justify-between text-left font-normal border rounded-xl py-3 text-base text-[#30266D] bg-white',
-            !selected && 'text-[#30266D]'
-          )}
-          aria-label={placeholder}
-        >
-          <div className="flex items-center">
-            {showIcon && <CalendarIcon className="mr-2 h-4 w-4 text-[#30266D]" />}
-            {selected && dayjs(selected).isValid() ? (
-              dayjs(selected).tz('Asia/Bangkok').format('D MMMM BBBB')
-            ) : (
-              <span>{placeholder}</span>
+    <div className="relative w-full">
+      <Popover open={isOpen} onOpenChange={setIsOpen}>
+        <PopoverTrigger asChild>
+          <motion.button
+            variant="outline"
+            className={cn(
+              'w-full flex items-center justify-between rounded-[var(--radius)] border border-[var(--border)] bg-[var(--input)] text-[var(--card-foreground)] px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-[var(--ring)] transition-all duration-300 pr-10' // Extra padding for icons
             )}
-          </div>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0 z-50 bg-white border-[#30266D]">
-        <div className="p-4">
-          <div className="flex items-center justify-between mb-4">
-            <Button
-              variant="ghost"
-              className="h-8 w-8 p-0 text-[#30266D]"
-              onClick={handlePreviousMonth}
-              aria-label="ที่แล้วหน้า"
-            >
-              <ChevronLeftIcon className="h-5 w-5" />
-            </Button>
-            <div className="font-semibold text-center text-base text-[#30266D]">
-              {monthNames[currentDate.month()]} {currentDate.add(543, 'year').year()}
+            aria-label={placeholder}
+            whilehover={{ scale: 1.02 }}
+            whiletap={{ scale: 0.98 }}
+          >
+            <div className="flex items-center">
+              {showIcon && <FontAwesomeIcon icon={faCalendar} className="mr-2 h-5 w-5 text-[var(--primary)]" />}
+              {selected && dayjs(selected).isValid() ? (
+                dayjs(selected).tz('Asia/Bangkok').format('D MMMM BBBB')
+              ) : (
+                <span className="text-[var(--muted-foreground)]">{placeholder}</span>
+              )}
             </div>
-            <Button
-              variant="ghost"
-              className="h-8 w-8 p-0 text-[#30266D]"
-              onClick={handleNextMonth}
-              aria-label="เดือนถัดไป"
+            <FontAwesomeIcon icon={faChevronDown} className="h-5 w-5 text-[var(--primary)] absolute right-3 top-1/2 transform -translate-y-1/2" />
+          </motion.button>
+        </PopoverTrigger>
+        {selected && (
+          <motion.button
+            onClick={handleClear}
+            className="absolute right-10 top-1/2 transform -translate-y-1/2 text-[var(--primary)] hover:bg-[var(--muted)] rounded-full p-1 z-10"
+            aria-label={`Clear ${placeholder}`}
+            whilehover={{ scale: 1.1 }}
+            whiletap={{ scale: 0.9 }}
+          >
+            <FontAwesomeIcon icon={faXmark} className="h-4 w-4" />
+          </motion.button>
+        )}
+        <PopoverContent className="w-auto p-4 bg-[var(--card)] rounded-[var(--radius)] shadow-lg border border-[var(--border)]">
+          <div className="flex items-center justify-between mb-3">
+            <motion.button
+              onClick={handlePreviousMonth}
+              className="h-8 w-8 rounded-full bg-[var(--muted)] text-[var(--primary)] hover:bg-[var(--muted)]/80 transition-all duration-200"
+              aria-label="Previous month"
+              whilehover={{ scale: 1.1 }}
+              whiletap={{ scale: 0.9 }}
             >
-              <ChevronRightIcon className="h-5 w-5" />
-            </Button>
+              <FontAwesomeIcon icon={faChevronLeft} className="h-5 w-5 mx-auto" />
+            </motion.button>
+            <span className="font-semibold text-[var(--primary)]">
+              {monthNames[currentDate.month()]} {currentDate.add(543, 'year').year()}
+            </span>
+            <motion.button
+              onClick={handleNextMonth}
+              className="h-8 w-8 rounded-full bg-[var(--muted)] text-[var(--primary)] hover:bg-[var(--muted)]/80 transition-all duration-200"
+              aria-label="Next month"
+              whilehover={{ scale: 1.1 }}
+              whiletap={{ scale: 0.9 }}
+            >
+              <FontAwesomeIcon icon={faChevronRight} className="h-5 w-5 mx-auto" />
+            </motion.button>
           </div>
-          <div className="grid grid-cols-7 text-center text-sm">
-            {weekdayNames.map((day) => (
-              <div key={day} className="font-semibold text-[#30266D]">
-                {day}
-              </div>
+          <div className="grid grid-cols-7 text-center text-xs font-medium text-[var(--muted-foreground)] mb-2">
+            {weekdayNames.map((day, index) => (
+              <div key={index} className="p-1">{day}</div>
             ))}
           </div>
-          <div className="grid grid-cols-7 text-center">
+          <div className="grid grid-cols-7 text-center text-sm">
             {Array.from({ length: startDay }).map((_, i) => (
-              <div key={`empty-${i}`} className="h-10 w-10"></div>
+              <div key={`empty-${currentDate.format('YYYY-MM')}-${i}`} className="h-8 w-8"></div>
             ))}
             {days.map((day) => {
               const date = dayjs(currentDate).tz('Asia/Bangkok').date(day);
@@ -182,27 +232,29 @@ const DatePicker = forwardRef(({ selected, onSelect, placeholder, minDate, maxDa
               const isBlocked = (min && date.isBefore(min, 'day')) || (max && date.isAfter(max, 'day'));
 
               return (
-                <Button
-                  key={day}
-                  variant="ghost"
-                  className={cn(
-                    'h-10 w-10 p-0 rounded-full text-base',
-                    isSelected && 'bg-[#F9669D] text-white hover:bg-[#F9669D]/80',
-                    isToday && 'border-2 border-[#30266D]',
-                    isBlocked && 'text-gray-500 opacity-50 cursor-not-allowed'
-                  )}
+                <motion.button
+                  key={`${currentDate.format('YYYY-MM')}-${day}`}
                   onClick={() => handleDateClick(day)}
+                  className={cn(
+                    'h-8 w-8 rounded-full font-medium flex items-center justify-center transition-all duration-200',
+                    isSelected ? 'bg-[var(--primary)] text-[var(--primary-foreground)] hover:bg-[var(--primary)]/90' : 
+                    isToday ? 'border-2 border-[var(--primary)] text-[var(--primary)] hover:bg-[var(--card)]/90' : 
+                    isBlocked ? 'text-[var(--muted-foreground)] opacity-50 cursor-not-allowed' : 
+                    'hover:bg-[var(--muted)]'
+                  )}
                   disabled={isBlocked}
-                  aria-label={`เลือกวันที่ ${day}`}
+                  aria-label={`Select date ${day}`}
+                  whilehover={{ scale: 1.1 }}
+                  whiletap={{ scale: 0.9 }}
                 >
                   {day}
-                </Button>
+                </motion.button>
               );
             })}
           </div>
-        </div>
-      </PopoverContent>
-    </Popover>
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 });
 
@@ -252,23 +304,56 @@ export default function StatisticsTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [exportLoading, setExportLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
+        const token = sessionStorage.getItem('jwt');
+        if (!token) {
+          throw new Error('Unauthorized');
+        }
         const [bookingRes, vaccineRes] = await Promise.all([
-          axios.get(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccine-bookings?populate[patient]=*&populate[vaccine]=*`, {
-            withCredentials: true,
+          axios.get(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccine-bookings?populate[vaccine]=*&populate[patient]=*`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Cache-Control': 'no-cache',
+              Pragma: 'no-cache',
+              Expires: '0',
+            },
+            timeout: 5000,
           }),
           axios.get(`${process.env.NEXT_PUBLIC_STRAPI_URL}/api/vaccines`, {
-            withCredentials: true,
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Cache-Control': 'no-cache',
+              Pragma: 'no-cache',
+              Expires: '0',
+            },
+            timeout: 5000,
           }),
         ]);
 
         const bookingData = bookingRes.data.data || [];
-        setBookings(bookingData);
-        setAllVaccines(vaccineRes.data.data?.map((v) => v.attributes.title) || []);
+        const normalizedBookings = bookingData.map(app => ({
+          id: app.id,
+          attributes: {
+            bookingDate: app.bookingDate || app.attributes?.bookingDate,
+            startTime: app.startTime || app.attributes?.startTime,
+            endTime: app.endTime || app.attributes?.endTime,
+            booking_status: app.booking_status || app.attributes?.booking_status || 'confirmed',
+            vaccination_status: app.vaccination_status || app.attributes?.vaccination_status || 'not_started',
+            vaccine: app.vaccine
+              ? { data: { id: app.vaccine.id, attributes: app.vaccine } }
+              : app.attributes?.vaccine || null,
+            patient: app.patient
+              ? { data: { id: app.patient.id, attributes: app.patient } }
+              : app.attributes?.patient || null,
+          },
+        }));
+        setBookings(normalizedBookings);
+        setAllVaccines(vaccineRes.data.data?.map((v) => v.attributes?.title || v.title) || []);
         setLoading(false);
       } catch (err) {
         const errorMessage = err.response?.data?.error?.message || 'ไม่สามารถดึงข้อมูลสถิติได้';
@@ -277,10 +362,10 @@ export default function StatisticsTab() {
           text: errorMessage === 'Unauthorized' ? 'กรุณาเข้าสู่ระบบใหม่' : errorMessage,
           icon: 'error',
           customClass: {
-            popup: 'bg-white rounded-2xl shadow-lg border border-[#30266D] p-6',
-            title: 'text-xl font-bold text-[#30266D] mb-3',
-            htmlContainer: 'text-base text-[#30266D] font-medium mb-4',
-            confirmButton: 'bg-[#F9669D] text-white px-4 py-2 rounded-xl font-semibold text-base hover:bg-[#F9669D]/80 transition-all duration-300 transform hover:scale-105',
+            popup: 'bg-[var(--card)] rounded-[var(--radius)] shadow-lg border border-[var(--border)] p-6 max-w-md w-full',
+            title: 'text-lg font-semibold text-[var(--card-foreground)]',
+            htmlContainer: 'text-sm text-[var(--muted-foreground)]',
+            confirmButton: 'bg-[var(--primary)] text-[var(--primary-foreground)] px-4 py-2 rounded-[var(--radius)] text-sm font-medium hover:bg-[var(--primary)]/90 transition-all duration-200 shadow-sm',
           },
         });
         setError(errorMessage);
@@ -298,13 +383,18 @@ export default function StatisticsTab() {
       const bookingDay = attributes.bookingDate ? dayjs(attributes.bookingDate).tz('Asia/Bangkok') : null;
       const start = filters.startDate ? dayjs(filters.startDate).tz('Asia/Bangkok').startOf('day') : null;
       const end = filters.endDate ? dayjs(filters.endDate).tz('Asia/Bangkok').endOf('day') : null;
+      const patientName = attributes.patient?.data?.attributes
+        ? `${attributes.patient.data.attributes.first_name} ${attributes.patient.data.attributes.last_name}`
+        : '';
 
       const inDateRange = (!start || (bookingDay && bookingDay.isSameOrAfter(start))) && (!end || (bookingDay && bookingDay.isSameOrBefore(end)));
       const matchesVaccine = filters.vaccine.includes('ทั้งหมด') || filters.vaccine.includes(vaccineTitle);
+      const matchesStatus = attributes.booking_status === filters.status;
+      const matchesSearch = patientName.toLowerCase().includes(searchTerm.toLowerCase());
 
-      return matchesVaccine && attributes.status === filters.status && inDateRange;
+      return matchesVaccine && matchesStatus && inDateRange && matchesSearch;
     });
-  }, [bookings, filters]);
+  }, [bookings, filters, searchTerm]);
 
   const countBy = (fn) =>
     filteredBookings.reduce((acc, b) => {
@@ -314,11 +404,15 @@ export default function StatisticsTab() {
     }, {});
 
   const toChartData = (obj) =>
-    Object.entries(obj).map(([name, value]) => ({
-      name,
-      value,
-      percent: value / Object.values(obj).reduce((sum, val) => sum + val, 0),
-    }));
+    Object.entries(obj).map(([name, value]) => {
+      const total = Object.values(obj).reduce((sum, val) => sum + val, 0);
+      const percent = total > 0 ? (value / total) * 100 : 0;
+      return {
+        name,
+        value,
+        percent: percent.toFixed(2),
+      };
+    });
 
   const stats = useMemo(() => {
     const vaccineStats = countBy((b) => b.attributes.vaccine?.data?.attributes?.title ?? 'ไม่ระบุวัคซีน');
@@ -344,7 +438,8 @@ export default function StatisticsTab() {
       const dateStats = countBy((b) => b.attributes.bookingDate?.slice(0, 10) ?? 'ไม่ระบุวัน');
       return Object.keys(dateStats)
         .sort()
-        .map((date) => ({
+        .map((date, index) => ({
+          key: `${date}-${index}`,
           date,
           'จำนวนใบนัด': dateStats[date],
         }));
@@ -359,54 +454,73 @@ export default function StatisticsTab() {
         text: 'ไม่มีข้อมูลสำหรับส่งออก',
         icon: 'warning',
         customClass: {
-          popup: 'bg-white rounded-2xl shadow-lg border border-[#30266D] p-6',
-          title: 'text-xl font-bold text-[#30266D] mb-3',
-          htmlContainer: 'text-base text-[#30266D] font-medium mb-4',
-          confirmButton: 'bg-[#F9669D] text-white px-4 py-2 rounded-xl font-semibold text-base hover:bg-[#F9669D]/80 transition-all duration-300 transform hover:scale-105',
+          popup: 'bg-[var(--card)] rounded-[var(--radius)] shadow-lg border border-[var(--border)] p-6 max-w-md w-full',
+          title: 'text-lg font-semibold text-[var(--card-foreground)]',
+          htmlContainer: 'text-sm text-[var(--muted-foreground)]',
+          confirmButton: 'bg-[var(--primary)] text-[var(--primary-foreground)] px-4 py-2 rounded-[var(--radius)] text-sm font-medium hover:bg-[var(--primary)]/90 transition-all duration-200 shadow-sm',
         },
       });
       return;
     }
 
     setExportLoading(true);
-    let data;
-    let wsName = 'รายงาน';
-
-    if (chartType === 'line') {
-      data = stats.line.map((item) => ({
-        วันที่: dayjs(item.date).tz('Asia/Bangkok').locale('th').format('D MMMM BBBB'),
-        จำนวนใบนัด: item['จำนวนใบนัด'],
-      }));
-      wsName = 'รายงานรายวัน';
-    } else {
-      data = toChartData(stats[chartType]).map(({ name, value }) => {
-        let newNameKey = '';
-        let newValueKey = 'จำนวน';
-
-        switch (chartType) {
-          case 'vaccine':
-            newNameKey = 'ชื่อวัคซีน';
-            break;
-          case 'gender':
-            newNameKey = 'เพศ';
-            break;
-          case 'age':
-            newNameKey = 'ช่วงอายุ';
-            break;
-          default:
-            newNameKey = 'ชื่อ';
-        }
-
-        return { [newNameKey]: name, [newValueKey]: value };
-      });
-      wsName = `รายงาน${chartType === 'vaccine' ? 'วัคซีน' : chartType === 'gender' ? 'เพศ' : 'ช่วงอายุ'}`;
-    }
 
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), wsName);
+
+    const vaccineData = toChartData(stats.vaccine).map(({ name, value, percent }) => ({
+      'ชื่อวัคซีน': name,
+      'จำนวน': value,
+      'สัดส่วน (%)': percent,
+    }));
+    if (vaccineData.length > 0) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(vaccineData), 'รายงานวัคซีน');
+    }
+
+    const genderData = toChartData(stats.gender).map(({ name, value, percent }) => ({
+      'เพศ': name,
+      'จำนวน': value,
+      'สัดส่วน (%)': percent,
+    }));
+    if (genderData.length > 0) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(genderData), 'รายงานเพศ');
+    }
+
+    const ageData = toChartData(stats.age).map(({ name, value, percent }) => ({
+      'ช่วงอายุ': name,
+      'จำนวน': value,
+      'สัดส่วน (%)': percent,
+    }));
+    if (ageData.length > 0) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ageData), 'รายงานช่วงอายุ');
+    }
+
+    const dailyData = stats.line.map((item) => ({
+      'วันที่': dayjs(item.date).tz('Asia/Bangkok').locale('th').format('D MMMM BBBB'),
+      'จำนวนใบนัด': item['จำนวนใบนัด'],
+    }));
+    if (dailyData.length > 0) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dailyData), 'รายงานรายวัน');
+    }
+
+    if (Object.keys(wb.Sheets).length === 0) {
+      MySwal.fire({
+        title: 'ไม่มีข้อมูล',
+        text: 'ไม่มีข้อมูลสำหรับส่งออก',
+        icon: 'warning',
+        customClass: {
+          popup: 'bg-[var(--card)] rounded-[var(--radius)] shadow-lg border border-[var(--border)] p-6 max-w-md w-full',
+          title: 'text-lg font-semibold text-[var(--card-foreground)]',
+          htmlContainer: 'text-sm text-[var(--muted-foreground)]',
+          confirmButton: 'bg-[var(--primary)] text-[var(--primary-foreground)] px-4 py-2 rounded-[var(--radius)] text-sm font-medium hover:bg-[var(--primary)]/90 transition-all duration-200 shadow-sm',
+        },
+      });
+      setExportLoading(false);
+      return;
+    }
+
     saveAs(
       new Blob([XLSX.write(wb, { bookType: 'xlsx', type: 'array' })]),
-      `รายงาน-${chartType === 'vaccine' ? 'วัคซีน' : chartType === 'gender' ? 'เพศ' : chartType === 'age' ? 'ช่วงอายุ' : 'รายวัน'}-${dayjs().tz('Asia/Bangkok').locale('th').format('D MMMM BBBB')}.xlsx`
+      `รายงานสถิติทั้งหมด-${dayjs().tz('Asia/Bangkok').locale('th').format('D MMMM BBBB')}.xlsx`
     );
     setExportLoading(false);
   };
@@ -418,6 +532,7 @@ export default function StatisticsTab() {
       startDate: null,
       endDate: null,
     });
+    setSearchTerm('');
     setShowFilters(false);
   };
 
@@ -427,7 +542,7 @@ export default function StatisticsTab() {
     if (data.length === 0) {
       return (
         <motion.p
-          className="text-center text-xl font-semibold text-[#30266D]"
+          className="text-center text-sm text-[var(--muted-foreground)]"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5 }}
@@ -446,7 +561,7 @@ export default function StatisticsTab() {
         >
           <ResponsiveContainer width="100%" height={500}>
             <LineChart data={data} margin={{ top: 30, right: 20, left: 20, bottom: 80 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#D1D5DB" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis
                 dataKey="date"
                 tickFormatter={(d) => {
@@ -457,31 +572,26 @@ export default function StatisticsTab() {
                 textAnchor="end"
                 height={100}
                 interval={0}
-                tick={{ fill: '#30266D', fontWeight: '600', fontSize: '15px' }}
+                tick={{ fill: 'var(--card-foreground)', fontWeight: '600', fontSize: '12px' }}
               />
               <YAxis
                 allowDecimals={false}
-                tick={{ fill: '#30266D', fontWeight: '600', fontSize: '15px' }}
+                tick={{ fill: 'var(--card-foreground)', fontWeight: '600', fontSize: '12px' }}
               />
               <Tooltip
-                contentStyle={{
-                  backgroundColor: '#FFFFFF',
-                  border: '1px solid #30266D',
-                  borderRadius: '8px',
-                  color: '#30266D',
-                }}
+                content={<CustomTooltip chartType={chartType} />}
                 labelFormatter={(d) => {
                   const date = dayjs(d).tz('Asia/Bangkok');
                   return date.isValid() ? date.locale('th').format('D MMMM BBBB') : 'ไม่ทราบวันที่';
                 }}
               />
-              <Legend verticalAlign="top" height={36} wrapperStyle={{ color: '#30266D' }} />
+              <Legend verticalAlign="top" height={36} wrapperStyle={{ color: 'var(--card-foreground)' }} />
               <Line
                 type="monotone"
                 dataKey="จำนวนใบนัด"
-                stroke="#30266D"
+                stroke="var(--primary)"
                 strokeWidth={3}
-                activeDot={{ r: 8, fill: '#F9669D' }}
+                activeDot={{ r: 8, fill: chartColors[0] }}
               />
             </LineChart>
           </ResponsiveContainer>
@@ -506,14 +616,14 @@ export default function StatisticsTab() {
                 outerRadius={160}
                 dataKey="value"
                 nameKey="name"
-                label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                label={({ name, value, percent }) => `${name} (${value} - ${percent}%)`}
               >
-                {data.map((_, index) => (
-                  <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
+                {data.map((entry, index) => (
+                  <Cell key={`${entry.name}-${index}`} fill={chartColors[index % chartColors.length]} />
                 ))}
               </Pie>
-              <Tooltip content={<CustomTooltip />} />
-              <Legend verticalAlign="bottom" height={36} wrapperStyle={{ color: '#30266D' }} />
+              <Tooltip content={<CustomTooltip chartType={chartType} />} />
+              <Legend verticalAlign="bottom" height={36} wrapperStyle={{ color: 'var(--card-foreground)' }} />
             </PieChart>
           </ResponsiveContainer>
         </motion.div>
@@ -526,19 +636,16 @@ export default function StatisticsTab() {
   if (loading) {
     return (
       <motion.div
-        className="flex flex-col items-center justify-center h-screen"
+        className="flex items-center justify-center h-screen bg-[var(--background)]"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
       >
         <motion.div
-          className="w-12 h-12 border-4 rounded-full border-[#F9669D] border-t-[#30266D]"
+          className="w-8 h-8 border-4 border-[var(--border)] border-t-[var(--primary)] rounded-full"
           animate={{ rotate: 360 }}
           transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-        ></motion.div>
-        <p className="mt-4 text-xl font-semibold text-[#30266D]">
-          กำลังโหลดข้อมูล...
-        </p>
+        />
       </motion.div>
     );
   }
@@ -546,15 +653,13 @@ export default function StatisticsTab() {
   if (error) {
     return (
       <motion.div
-        className="flex justify-center items-center h-screen"
+        className="flex justify-center items-center h-screen bg-[var(--background)]"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
       >
-        <Card className="p-6 rounded-2xl shadow-lg bg-white border-[#30266D]">
-          <p className="text-xl font-semibold text-[#30266D]">
-            {error}
-          </p>
+        <Card className="p-6 rounded-[var(--radius)] shadow-lg border border-[var(--border)] bg-[var(--card)]">
+          <p className="text-sm text-[var(--muted-foreground)]">{error}</p>
         </Card>
       </motion.div>
     );
@@ -564,322 +669,267 @@ export default function StatisticsTab() {
   const statuses = [
     { value: 'confirmed', label: 'จองแล้ว' },
     { value: 'cancelled', label: 'ยกเลิก' },
-  ];
+  ].map((status, index) => ({ ...status, key: `${status.value}-${index}` }));
+
+  const activeFiltersCount = [
+    searchTerm,
+    !filters.vaccine.includes('ทั้งหมด'),
+    filters.status !== 'confirmed',
+    filters.startDate,
+    filters.endDate,
+  ].filter(Boolean).length;
 
   return (
     <motion.div
-      className="max-w-screen-xl mx-auto px-4 py-10 sm:px-6 bg-gray-50"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
+      className="min-h-screen py-8 px-4 sm:px-6 lg:px-8 font-prompt"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
     >
-      <h2 className="text-4xl sm:text-5xl font-extrabold mb-10 text-center tracking-tight text-[#30266D]">
-        สถิติการจองวัคซีน
-      </h2>
+      <div className="max-w-7xl mx-auto">
+        <h2 className="text-xl sm:text-2xl font-bold text-[var(--primary)] mb-2">สถิติการจองวัคซีน</h2>
+        <p className="text-sm text-[var(--muted-foreground)] mb-6">
+          ข้อมูล ณ วันที่ {dayjs().tz('Asia/Bangkok').format('D MMMM BBBB')}
+        </p>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-10">
-        <motion.div
-          className="rounded-2xl p-8 shadow-xl flex flex-col items-center justify-center bg-[#F9669D] text-white hover:scale-105 transition-transform cursor-pointer"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-        >
-          <p className="text-base mb-2 opacity-80 select-none">จำนวนจองทั้งหมด</p>
-          <p className="text-6xl font-extrabold tracking-wider">{bookings.filter((b) => b.attributes.status === 'confirmed').length}</p>
-        </motion.div>
-        <motion.div
-          className="rounded-2xl p-8 shadow-xl flex flex-col items-center justify-center bg-[#F9669D] text-white hover:scale-105 transition-transform cursor-pointer"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
-          <p className="text-base mb-2 opacity-80 select-none">จำนวนยกเลิก</p>
-          <p className="text-6xl font-extrabold tracking-wider">{bookings.filter((b) => b.attributes.status === 'cancelled').length}</p>
-        </motion.div>
-      </div>
-
-      <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <Button
-            className={cn(
-              'flex items-center gap-2 px-6 py-3 rounded-full font-semibold text-white text-base transition-all duration-300 transform hover:scale-105',
-              showFilters ? 'bg-[#30266D] hover:bg-[#30266D]/80 shadow-lg' : 'bg-[#F9669D] hover:bg-[#F9669D]/80 shadow-lg'
-            )}
-            onClick={() => setShowFilters(!showFilters)}
-            aria-label={showFilters ? 'ซ่อนตัวกรอง' : 'แสดงตัวกรอง'}
-          >
-            {showFilters ? <XMarkIcon className="h-5 w-5" /> : <FunnelIcon className="h-5 w-5" />}
-            {showFilters ? 'ซ่อนตัวกรอง' : 'แสดงตัวกรอง'}
-          </Button>
-        </motion.div>
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <Button
-            onClick={exportExcel}
-            className="w-full sm:w-auto rounded-full bg-[#F9669D] text-white font-semibold py-3 px-8 shadow-md text-base transition-all duration-300 hover:bg-[#F9669D]/80 disabled:opacity-50"
-            disabled={exportLoading}
-            aria-label="ส่งออกข้อมูลเป็น Excel"
-          >
-            {exportLoading ? (
-              <div className="flex items-center gap-2">
-                <motion.div
-                  className="w-5 h-5 border-2 rounded-full border-white border-t-[#30266D]"
-                  animate={{ rotate: 360 }}
-                  transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-                ></motion.div>
-                กำลังส่งออก...
-              </div>
-            ) : (
-              'ดาวน์โหลด Excel'
-            )}
-          </Button>
-        </motion.div>
-      </div>
-
-      {showFilters && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <Card className="shadow-2xl rounded-2xl mb-8 bg-white border-[#30266D]">
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <CardTitle className="text-xl font-semibold text-[#30266D]">
-                  ตัวกรองการค้นหา
-                </CardTitle>
-                <Button
-                  variant="ghost"
-                  className="text-base font-semibold text-[#F9669D]"
-                  onClick={resetFilters}
-                  aria-label="รีเซ็ตตัวกรอง"
-                >
-                  <ArrowPathIcon className="h-5 w-5 mr-2" />
-                  รีเซ็ต
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-6">
-              <div>
-                <label className="block text-base font-semibold mb-2 text-[#30266D]">
-                  วัคซีน
-                </label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-between text-left font-normal rounded-xl py-3 text-base bg-white border-[#30266D] text-[#30266D]"
-                      aria-label="เลือกวัคซีน"
-                    >
-                      <span className="truncate">
-                        {filters.vaccine.length === 0
-                          ? 'เลือกวัคซีน'
-                          : filters.vaccine.includes('ทั้งหมด')
-                          ? 'ทั้งหมด'
-                          : filters.vaccine.join(', ')}
-                      </span>
-                      <ChevronDownIcon className="ml-2 h-4 w-4 text-[#30266D]" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[200px] p-0 z-50 bg-white border-[#30266D]">
-                    <Command>
-                      <CommandInput
-                        placeholder="ค้นหาวัคซีน..."
-                        className="text-[#30266D] border-[#30266D]"
-                      />
-                      <CommandList>
-                        <CommandEmpty className="text-[#30266D]">ไม่พบวัคซีน</CommandEmpty>
-                        <CommandGroup>
-                          <CommandItem
-                            onSelect={() => setFilters((prev) => ({ ...prev, vaccine: ['ทั้งหมด'] }))}
-                            className="cursor-pointer hover:bg-[#F9669D]/10 text-[#30266D]"
-                          >
-                            <span>ทั้งหมด</span>
-                          </CommandItem>
-                          {vaccineOptions
-                            .filter((v) => v !== 'ทั้งหมด')
-                            .map((vaccine) => (
-                              <CommandItem
-                                key={vaccine}
-                                onSelect={() =>
-                                  setFilters((prev) => {
-                                    const newVaccines = prev.vaccine.includes(vaccine)
-                                      ? prev.vaccine.filter((v) => v !== vaccine)
-                                      : [...prev.vaccine.filter((v) => v !== 'ทั้งหมด'), vaccine];
-                                    return {
-                                      ...prev,
-                                      vaccine: newVaccines.length === 0 ? ['ทั้งหมด'] : newVaccines,
-                                    };
-                                  })
-                                }
-                                className="cursor-pointer hover:bg-[#F9669D]/10 text-[#30266D]"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={filters.vaccine.includes(vaccine)}
-                                  onChange={() => {}}
-                                  className="mr-2 h-4 w-4 accent-[#F9669D]"
-                                />
-                                {vaccine}
-                              </CommandItem>
-                            ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              </div>
-              <div>
-                <label className="block text-base font-semibold mb-2 text-[#30266D]">
-                  สถานะ
-                </label>
-                <Select value={filters.status} onValueChange={(value) => setFilters({ ...filters, status: value })}>
-                  <SelectTrigger className="w-full rounded-xl py-3 bg-white border-[#30266D] text-[#30266D]">
-                    <SelectValue placeholder="เลือกสถานะ" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border-[#30266D]">
-                    {statuses.map((status) => (
-                      <SelectItem
-                        key={status.value}
-                        value={status.value}
-                        className="hover:bg-[#F9669D]/10 text-[#30266D]"
-                      >
-                        {status.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="block text-base font-semibold mb-2 text-[#30266D]">
-                  จากวันที่
-                </label>
-                <div className="relative">
-                  <DatePicker
-                    selected={filters.startDate}
-                    onSelect={(date) => setFilters({ ...filters, startDate: date })}
-                    placeholder="วัน เดือน ปี"
-                    maxDate={filters.endDate}
-                    showIcon={true}
-                  />
-                  {filters.startDate && (
-                    <button
-                      type="button"
-                      onClick={() => setFilters((prev) => ({ ...prev, startDate: null }))}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#F9669D]"
-                      aria-label="ล้างวันที่เริ่มต้น"
-                    >
-                      <XMarkIcon className="h-5 w-5" />
-                    </button>
-                  )}
-                </div>
-              </div>
-              <div>
-                <label className="block text-base font-semibold mb-2 text-[#30266D]">
-                  ถึงวันที่
-                </label>
-                <div className="relative">
-                  <DatePicker
-                    selected={filters.endDate}
-                    onSelect={(date) => setFilters({ ...filters, endDate: date })}
-                    placeholder="วัน เดือน ปี"
-                    minDate={filters.startDate}
-                    showIcon={true}
-                  />
-                  {filters.endDate && (
-                    <button
-                      type="button"
-                      onClick={() => setFilters((prev) => ({ ...prev, endDate: null }))}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#F9669D]"
-                      aria-label="ล้างวันที่สิ้นสุด"
-                    >
-                      <XMarkIcon className="h-5 w-5" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
-
-      <div className="flex flex-wrap justify-center gap-4 mb-8 select-none">
-        {[
-          ['vaccine', 'วัคซีน'],
-          ['gender', 'เพศ'],
-          ['age', 'อายุ'],
-          ['line', 'รายวัน'],
-        ].map(([key, label]) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
           <motion.div
-            key={key}
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.3 }}
+            className="p-6 rounded-[var(--radius)] shadow-lg border border-[var(--border)] bg-[var(--card)] text-center"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+            whilehover={{ scale: 1.02 }}
           >
+            <p className="text-sm text-[var(--muted-foreground)] mb-2">จำนวนจองทั้งหมด</p>
+            <p className="text-3xl font-bold text-[var(--card-foreground)]">{bookings.filter((b) => b.attributes.booking_status === 'confirmed').length}</p>
+          </motion.div>
+          <motion.div
+            className="p-6 rounded-[var(--radius)] shadow-lg border border-[var(--border)] bg-[var(--card)] text-center"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.2 }}
+            whilehover={{ scale: 1.02 }}
+          >
+            <p className="text-sm text-[var(--muted-foreground)] mb-2">จำนวนยกเลิก</p>
+            <p className="text-3xl font-bold text-[var(--card-foreground)]">{bookings.filter((b) => b.attributes.booking_status === 'cancelled').length}</p>
+          </motion.div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-4 mb-6 sm:mb-8">
+          <div className="relative flex-grow">
+            <Input
+              type="text"
+              placeholder="ค้นหาชื่อ..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-10 py-2 text-xs sm:text-sm font-medium bg-[var(--card)] border-[var(--border)]/20 rounded-[var(--radius)] focus:ring-2 focus:ring-[var(--primary)]/40 focus:border-[var(--primary)] transition-all duration-200 shadow-sm w-full"
+              aria-label="ค้นหาชื่อ"
+            />
+            <FontAwesomeIcon
+              icon={faMagnifyingGlass}
+              className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--primary)]"
+            />
+            {searchTerm && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--primary)] p-1 h-auto"
+                aria-label="ล้างการค้นหา"
+              >
+                <FontAwesomeIcon icon={faXmark} className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
+
+          <div className="relative w-full sm:w-auto">
             <Button
-              onClick={() => setChartType(key)}
-              className={cn(
-                'rounded-full px-6 py-3 font-semibold text-base shadow-md transition-all duration-300',
-                chartType === key
-                  ? 'bg-[#30266D] text-white hover:bg-[#30266D]/80 border-[#30266D]'
-                  : 'bg-white text-[#30266D] hover:bg-[#F9669D] hover:text-white border-[#F9669D]'
-              )}
-              aria-label={`แสดงแผนภูมิ${label}`}
+              variant="outline"
+              className="flex justify-between items-center w-full sm:w-auto p-2 cursor-pointer bg-[var(--card)] border-[var(--border)]/20 hover:bg-[var(--primary)]/5 transition-all duration-200 rounded-[var(--radius)] shadow-sm"
+              onClick={() => setShowFilters(!showFilters)}
+              aria-expanded={showFilters}
+              aria-controls="filter-panel-content"
             >
-              {label}
+              <div className="flex items-center gap-2">
+                <FontAwesomeIcon icon={faFilter} className="h-4 w-4 text-[var(--primary)]" />
+                <span className="text-xs sm:text-sm font-medium text-[var(--card-foreground)]">ตัวกรอง</span>
+                {activeFiltersCount > 0 && (
+                  <Badge className="bg-[var(--primary)] text-[var(--primary-foreground)] text-[10px] sm:text-xs font-medium rounded-full px-2 py-0.5">
+                    {activeFiltersCount}
+                  </Badge>
+                )}
+              </div>
+              {showFilters ? (
+                <FontAwesomeIcon icon={faChevronUp} className="h-4 w-4 text-[var(--primary)]" />
+              ) : (
+                <FontAwesomeIcon icon={faChevronDown} className="h-4 w-4 text-[var(--primary)]" />
+              )}
+            </Button>
+
+            {showFilters && (
+              <motion.div
+                id="filter-panel-content"
+                className="absolute right-0 mt-2 w-full sm:w-80 bg-[var(--card)] border-[var(--border)]/20 rounded-[var(--radius)] shadow-lg z-20 overflow-hidden backdrop-blur-md"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3 }}
+              >
+                <CardContent className="p-3 sm:p-4 space-y-3 sm:space-y-4">
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-[var(--card-foreground)] mb-1">วัคซีน</label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <motion.button
+                          className="w-full flex items-center justify-between rounded-[var(--radius)] border border-[var(--border)] bg-[var(--input)] text-[var(--card-foreground)] px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-[var(--ring)] transition-all duration-300"
+                          aria-label="Select vaccine"
+                          whilehover={{ scale: 1.02 }}
+                          whiletap={{ scale: 0.98 }}
+                        >
+                          <span className="truncate">
+                            {filters.vaccine.length === 0
+                              ? 'เลือกวัคซีน'
+                              : filters.vaccine.includes('ทั้งหมด')
+                              ? 'ทั้งหมด'
+                              : filters.vaccine.join(', ')}
+                          </span>
+                          <FontAwesomeIcon icon={faChevronDown} className="h-5 w-5 text-[var(--primary)]" />
+                        </motion.button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[200px] p-0 bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius)] shadow-lg">
+                        <Command>
+                          <CommandInput
+                            placeholder="ค้นหาวัคซีน..."
+                            className="text-[var(--card-foreground)] border-b border-[var(--border)]"
+                          />
+                          <CommandList>
+                            <CommandEmpty className="text-[var(--muted-foreground)]">ไม่พบวัคซีน</CommandEmpty>
+                            <CommandGroup>
+                              <CommandItem
+                                key="all"
+                                onSelect={() => setFilters((prev) => ({ ...prev, vaccine: ['ทั้งหมด'] }))}
+                                className="cursor-pointer hover:bg-[var(--muted)] text-[var(--card-foreground)]"
+                              >
+                                <span>ทั้งหมด</span>
+                              </CommandItem>
+                              {vaccineOptions
+                                .filter((v) => v !== 'ทั้งหมด')
+                                .map((vaccine, index) => (
+                                  <CommandItem
+                                    key={`${vaccine}-${index}`}
+                                    onSelect={() =>
+                                      setFilters((prev) => {
+                                        const newVaccines = prev.vaccine.includes(vaccine)
+                                          ? prev.vaccine.filter((v) => v !== vaccine)
+                                          : [...prev.vaccine.filter((v) => v !== 'ทั้งหมด'), vaccine];
+                                        return {
+                                          ...prev,
+                                          vaccine: newVaccines.length === 0 ? ['ทั้งหมด'] : newVaccines,
+                                        };
+                                      })
+                                    }
+                                    className="cursor-pointer hover:bg-[var(--muted)] text-[var(--card-foreground)]"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={filters.vaccine.includes(vaccine)}
+                                      onChange={() => {}}
+                                      className="mr-2 h-4 w-4 accent-[var(--primary)]"
+                                    />
+                                    {vaccine}
+                                  </CommandItem>
+                                ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-[var(--card-foreground)] mb-1">สถานะ</label>
+                    <Select value={filters.status} onValueChange={(value) => setFilters({ ...filters, status: value })}>
+                      <SelectTrigger
+                        className="text-xs sm:text-sm font-medium bg-[var(--card)] border-[var(--border)]/20 rounded-[var(--radius)] focus:ring-2 focus:ring-[var(--primary)]/40 focus:border-[var(--primary)] py-1.5 px-2 shadow-sm w-full"
+                        aria-label="เลือกสถานะ"
+                      >
+                        <SelectValue placeholder="เลือกสถานะ" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[var(--card)] border-[var(--border)]/20 rounded-[var(--radius)] shadow-md z-30">
+                        {statuses.map((status) => (
+                          <SelectItem key={status.key} value={status.value} className="text-xs sm:text-sm">
+                            {status.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-[var(--card-foreground)] mb-1">จากวันที่</label>
+                    <DatePicker
+                      selected={filters.startDate}
+                      onSelect={(date) => setFilters({ ...filters, startDate: date })}
+                      placeholder="วัน เดือน ปี"
+                      maxDate={filters.endDate}
+                      showIcon={true}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-[var(--card-foreground)] mb-1">ถึงวันที่</label>
+                    <DatePicker
+                      selected={filters.endDate}
+                      onSelect={(date) => setFilters({ ...filters, endDate: date })}
+                      placeholder="วัน เดือน ปี"
+                      minDate={filters.startDate}
+                      showIcon={true}
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={resetFilters}
+                    className="w-full bg-[var(--card)] text-[var(--primary)] border-[var(--border)]/20 hover:bg-[var(--primary)]/10 rounded-[var(--radius)] py-2 sm:py-3 text-xs sm:text-sm shadow-sm"
+                  >
+                    <FontAwesomeIcon icon={faArrowRotateRight} className="w-4 h-4 mr-2" />
+                    รีเซ็ตตัวกรอง
+                  </Button>
+                </CardContent>
+              </motion.div>
+            )}
+          </div>
+          <motion.div whilehover={{ scale: 1.05 }} whiletap={{ scale: 0.95 }}>
+            <Button
+              onClick={exportExcel}
+              className="w-full sm:w-auto px-6 py-3 bg-[var(--primary)] text-[var(--primary-foreground)] rounded-[var(--radius)] font-semibold text-base hover:bg-[var(--primary)]/80 transition-all duration-300"
+              disabled={exportLoading}
+              aria-label="ดาวน์โหลด Excel"
+            >
+              <FontAwesomeIcon icon={faDownload} className="w-5 h-5 mr-2" /> ดาวน์โหลด Excel
             </Button>
           </motion.div>
-        ))}
+        </div>
+
+        <Card className="mt-6 p-6 rounded-[var(--radius)] shadow-lg border border-[var(--border)] bg-[var(--card)]">
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+              <CardTitle className="text-lg font-semibold text-[var(--primary)]">
+                {chartType === 'vaccine' ? 'สถิติวัคซีน' : chartType === 'gender' ? 'สถิติเพศ' : chartType === 'age' ? 'สถิติช่วงอายุ' : 'สถิติรายวัน'}
+              </CardTitle>
+              <Select value={chartType} onValueChange={setChartType}>
+                <SelectTrigger className="w-full sm:w-[180px] text-sm bg-[var(--input)] border-[var(--border)] text-[var(--card-foreground)] rounded-[var(--radius)] focus:ring-2 focus:ring-[var(--ring)] shadow-sm">
+                  <SelectValue placeholder="เลือกประเภทกราฟ" />
+                </SelectTrigger>
+                <SelectContent className="bg-[var(--card)] border-[var(--border)] text-[var(--card-foreground)] rounded-[var(--radius)] shadow-sm">
+                  <SelectItem value="vaccine" className="hover:bg-[var(--muted)] font-prompt">วัคซีน</SelectItem>
+                  <SelectItem value="gender" className="hover:bg-[var(--muted)] font-prompt">เพศ</SelectItem>
+                  <SelectItem value="age" className="hover:bg-[var(--muted)] font-prompt">ช่วงอายุ</SelectItem>
+                  <SelectItem value="line" className="hover:bg-[var(--muted)] font-prompt">วัน</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {renderChart()}
+          </CardContent>
+        </Card>
       </div>
-
-      {(chartType || filters.vaccine.length > 1 || (filters.vaccine.length === 1 && filters.vaccine[0] !== 'ทั้งหมด') || filters.startDate || filters.endDate) && (
-        <motion.div
-          className="flex flex-wrap justify-center items-center gap-4 font-semibold text-base mb-8 select-none"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          {filters.vaccine.length > 1 || (filters.vaccine.length === 1 && filters.vaccine[0] !== 'ทั้งหมด') && (
-            <p className="text-[#30266D]">
-              วัคซีน:{' '}
-              <span className="inline-block px-4 py-1 rounded-full shadow-sm bg-[#F9669D]/10 text-[#30266D]">
-                {filters.vaccine.includes('ทั้งหมด') ? 'ทั้งหมด' : filters.vaccine.join(', ')}
-              </span>
-            </p>
-          )}
-          <p className="text-[#30266D]">
-            สถานะ:{' '}
-            <span className="inline-block px-4 py-1 rounded-full shadow-sm bg-[#F9669D]/10 text-[#30266D]">
-              {statuses.find((s) => s.value === filters.status)?.label}
-            </span>
-          </p>
-          {(filters.startDate || filters.endDate) && (
-            <p className="text-[#30266D]">
-              ช่วงวันที่:{' '}
-              <span className="inline-block px-4 py-1 rounded-full shadow-sm bg-[#F9669D]/10 text-[#30266D]">
-                {filters.startDate ? dayjs(filters.startDate).tz('Asia/Bangkok').format('D MMM BBBB') : 'ไม่ระบุ'} -{' '}
-                {filters.endDate ? dayjs(filters.endDate).tz('Asia/Bangkok').format('D MMM BBBB') : 'ไม่ระบุ'}
-              </span>
-            </p>
-          )}
-        </motion.div>
-      )}
-
-      <motion.div
-        className="p-6"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        {renderChart()}
-      </motion.div>
     </motion.div>
   );
 }

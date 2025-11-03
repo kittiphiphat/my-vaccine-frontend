@@ -1,0 +1,5 @@
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="24" cy="24" r="24" fill="var(--primary, #007BFF)"/>
+  <path d="M20 16H28V20H32V28H28V32H20V28H16V20H20V16Z" fill="var(--primary-foreground, #FFFFFF)"/>
+  <text x="10" y="44" font-family="'Prompt', sans-serif" font-size="10" fill="var(--foreground, #212529)">VaccineApp</text>
+</svg>
