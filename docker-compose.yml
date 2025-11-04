@@ -1,0 +1,23 @@
+services:
+  nextjs:
+    build:
+      context: ./my-vaccine-frontend
+      dockerfile: Dockerfile
+    container_name: my-vaccine-frontend
+    env_file:
+      - .env
+    volumes:
+      - ./my-vaccine-frontend:/app
+      - /app/node_modules
+    command: sh -c "npm install && npm run dev"
+    ports:
+      - "${FRONTEND_PORT}:3000"
+    restart: unless-stopped
+    networks:
+      - app-network
+    environment:
+      TZ: ${TZ}
+
+networks:
+  app-network:
+    external: true
